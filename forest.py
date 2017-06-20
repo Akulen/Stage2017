@@ -15,18 +15,11 @@ class Forest(object):
 
     def train(self, data, validation, nbEpochs=100, batchSize=32):
         for it in self.iters:
-            print(it)
             it.train(data, validation, nbEpochs, batchSize)
 
     def evaluate(self, data):
         z = []
-        sy = 0
         for x, y in data:
-            sy += y[0]
-            z.append(sum([it.solve([x]) for it in self.iters]) / self.nbIter)
-        my = sy / len(data)
-        resu = [square(z[i] - data[i][1]) for i in range(len(data))]
-        rmse = sqrt(sum(resu) / len(data))
-        resu = [square(z[i] - my) for i in range(len(data))]
-        devi = sqrt(sum(resu) / len(data))
-        return rmse, devi
+            res = [it.solve([x])[0] for it in self.iters]
+            z.append(sum(res) / self.nbIter)
+        return utils.evaluate(z, [y[0] for _, y in data])

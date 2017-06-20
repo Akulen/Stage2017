@@ -21,13 +21,19 @@ class NN(Solver):
         dimensions = [nbInputs, nbFeatures-1, nbFeatures, 1]
         gamma = [100, 1]
         for i in range(3):
-            r = randomRange(dimensions[i], dimensions[i+1])
-            init_W = tf.random_uniform(dimensions[i:i+2], -r, r,
-                    seed=random.randint(0, 10**9))
+            init_W = tf.truncated_normal(dimensions[i:i+2], dtype=tf.float32,
+                    seed=random.randint(-10**5, 10**5))
             W = tf.Variable(initial_value=init_W)
-            init_b = tf.random_uniform([dimensions[i+1]], -r, r,
-                    seed=random.randint(0, 10**9))
+            init_b = tf.truncated_normal([dimensions[i+1]], dtype=tf.float32,
+                    seed=random.randint(-10**5, 10**5))
             b = tf.Variable(initial_value=init_b)
+            #r = randomRange(dimensions[i], dimensions[i+1])
+            #init_W = tf.random_uniform(dimensions[i:i+2], -r, r,
+            #        seed=random.randint(0, 10**9))
+            #W = tf.Variable(initial_value=init_W)
+            #init_b = tf.random_uniform([dimensions[i+1]], -r, r,
+            #        seed=random.randint(0, 10**9))
+            #b = tf.Variable(initial_value=init_b)
             if i == 2:
                 y = tf.matmul(y, W) + b
             else:
@@ -108,10 +114,6 @@ class NNF(Forest):
 
     def evaluate(self, data):
         z = [[] for i in range(len(data))]
-        sy = 0
-        for _, y in data:
-            sy += y[0]
-        my = sy / len(data)
         for i in range(self.nbIter):
             nn = NN(i, self.run, self.nbInputs, self.nbFeatures)
             nn.train(self.data, self.validation, self.nbEpochs)
@@ -121,13 +123,7 @@ class NNF(Forest):
             print(i)
         for i in range(len(data)):
             z[i] = sum(z[i]) / self.nbIter
-        def square(x):
-            return x*x
-        resu = [square(z[i] - data[i][1][0]) for i in range(len(data))]
-        rmse = sqrt(sum(resu) / len(data))
-        resu = [square(z[i] - my) for i in range(len(data))]
-        devi = sqrt(sum(resu) / len(data))
-        return rmse, devi
+        return utils.evaluate(z, [y[0] for _, y in data])
 
 
 
