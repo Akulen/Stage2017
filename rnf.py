@@ -21,7 +21,7 @@ class RNF(Forest):
         ]
         self.connectivity = [
             np.ones((nbInputs, self.layers[0][0])),
-            np.kron(np.eye(nbInputs), np.ones((nbFeatures, nbFeatures)))
+            np.kron(np.eye(nbIter), np.ones((nbFeatures, nbFeatures)))
         ]
 
         self.dt = [DT(id, self.run, self.nbInputs, self.nbInputs//3, self.maxProf) for _ in range(self.nbIter)]
