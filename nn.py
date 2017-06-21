@@ -1,6 +1,7 @@
 import random
 import tensorflow as tf
 import utils
+from joblib import Parallel, delayed
 from solver import Solver
 from forest import Forest
 from math import sqrt
@@ -54,8 +55,8 @@ class NN(Solver):
         self.sess = tf.Session()
 
         self.summary = tf.summary.merge_all()
-        self.train_writer = tf.summary.FileWriter('./train/'+self.run, self.sess.graph)
-        self.test_writer = tf.summary.FileWriter('./test/'+self.run, self.sess.graph)
+        #self.train_writer = tf.summary.FileWriter('./train/'+self.run, self.sess.graph)
+        #self.test_writer = tf.summary.FileWriter('./test/'+self.run, self.sess.graph)
 
         self.sess.run(tf.global_variables_initializer())
 
@@ -73,12 +74,12 @@ class NN(Solver):
                 batch_xs, batch_ys = utils.selectBatch(data, batchSize)
                 summary, _ = self.sess.run([self.summaries[0], self.train_step],
                         feed_dict={self.x: batch_xs, self.y: batch_ys})
-                if j == 0:
-                    self.train_writer.add_summary(summary, i)
+                #if j == 0:
+                #    self.train_writer.add_summary(summary, i)
             summary, closs = self.sess.run([self.summaries[-1], self.vloss], feed_dict={self.x: vx, self.y: vy})
-            self.train_writer.add_summary(summary, i)
-            if i % 10 == 9:
-                print("Epoch #" + str(i) + ": " + str(closs))
+            #self.train_writer.add_summary(summary, i)
+            #if i % 10 == 9:
+            #    print("Epoch #" + str(i) + ": " + str(closs))
             if closs < loss:
                 loss = closs
                 saver.save(self.sess, "/tmp/sess" + str(self.id) + ".ckpt")
@@ -107,22 +108,29 @@ class NNF(Forest):
         self.nbInputs = nbInputs
         self.nbFeatures = nbFeatures
 
+    def thread(self, id, data):
+        nn = NN(id, self.run, self.nbInputs, self.nbFeatures)
+        nn.train(self.data, self.validation, self.nbEpochs)
+        z = [None] * len(data)
+        for j in range(len(data)):
+            x, y = data[j]
+            z[j] = nn.solve([x])
+        return z
+
     def train(self, data, validation, nbEpochs=100):
         self.data = data
         self.validation = validation
         self.nbEpochs = nbEpochs
 
     def evaluate(self, data):
-        z = [[] for i in range(len(data))]
-        for i in range(self.nbIter):
-            nn = NN(i, self.run, self.nbInputs, self.nbFeatures)
-            nn.train(self.data, self.validation, self.nbEpochs)
-            for j in range(len(data)):
-                x, y = data[j]
-                z[j].append(nn.solve([x]))
-            print(i)
-        for i in range(len(data)):
-            z[i] = sum(z[i]) / self.nbIter
+        z = [0] * len(data)
+        res = Parallel(n_jobs=16)(
+            delayed(self.thread)(i, data) for i in range(self.nbIter)
+        )
+        for j in range(len(data)):
+            for i in range(self.nbIter):
+                z[j] += res[i][j]
+            z[j] = sum(z[j]) / len(data)
         return utils.evaluate(z, [y[0] for _, y in data])
 
 
