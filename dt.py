@@ -13,7 +13,7 @@ class DT(Solver):
 
         self.tree = DecisionTreeRegressor(max_features=maxFeatures, max_depth=maxProf)
 
-    def train(self, data, validation, nbEpochs=100, batchSize=32):
+    def train(self, data, validation, nbEpochs=100, batchSize=-1):
         X, y = map(list, zip(* data))
         y = [yy[0] for yy in y]
         self.tree.fit(X, y)
@@ -35,7 +35,7 @@ class RF(Forest):
         for i in range(self.nbIter):
             self.iters[i] = DT(i, self.run, self.nbInputs, maxFeatures, self.maxProf)
 
-    def train(self, data, validation, nbEpochs=100, batchSize=32):
+    def train(self, data, validation, nbEpochs=100, batchSize=-1):
         for it in self.iters:
             batch = utils.selectBatch(data, len(data)//3, replace=False, unzip=False)
             it.train(batch, validation, nbEpochs, batchSize)

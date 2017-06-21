@@ -1,9 +1,10 @@
-from nn import NNF
 from dt import RF
-import random
-import numpy as np
 from math import sqrt
+from nn import NNF
+from rnf import RNF
 from sklearn.ensemble import RandomForestRegressor
+import numpy as np
+import random
 
 def getData(filename, nbX, nbY):
     data = []
@@ -36,7 +37,8 @@ for i, data in enumerate(dataset):
     rmse = []
     for _ in range(10):
         #solver = RF(nbInputs, 6, 30)
-        solver = NNF(nbInputs, 64, 30)
+        #solver = NNF(nbInputs, 128, 3)
+        solver = RNF(nbInputs, 6, 128, 30)
 
         rmse.append(evaluateSolver(solver, data)[0])
 
