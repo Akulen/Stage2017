@@ -37,8 +37,8 @@ for i, data in enumerate(dataset):
     rmse = []
     for _ in range(10):
         #solver = RF(nbInputs, 6, 30)
-        #solver = NNF(nbInputs, 128, 3)
-        solver = RNF(nbInputs, 6, 128, 30)
+        solver = NNF(nbInputs, 128, 30)
+        #solver = RNF(nbInputs, 6, 128, 30)
 
         rmse.append(evaluateSolver(solver, data)[0])
 
