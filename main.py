@@ -1,9 +1,9 @@
-from dt import RF
-from math import sqrt
-from nn import NNF
-from rnf import RNF1, RNF2
+from dt               import RF
+from math             import sqrt
+from nn               import NNF
+from rnf              import RNF1, RNF2
 from sklearn.ensemble import RandomForestRegressor
-from utils import getData
+from utils            import getData
 import numpy as np
 import random
 
@@ -39,6 +39,6 @@ for i, data in enumerate(dataset):
 
         rmse.append(evaluateSolver(solver, data)[0])
 
-    print("%4.2f (" % (sum(rmse) / len(rmse)), end='')
-    print("%4.2f)" % np.std(rmse))
+    print("%5.2f (" % (sum(rmse) / len(rmse)), end='')
+    print("%5.2f)" % np.std(rmse))
 
