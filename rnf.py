@@ -23,8 +23,7 @@ class RNF1(Forest):
         self.nbEpochs   = nbEpochs
 
     def thread(self, id, data):
-        # TODO add id
-        rnf = RNF2(self.nbInputs, self.maxProf, self.nbFeatures, 1, self.sparse)
+        rnf = RNF2(self.nbInputs, self.maxProf, self.nbFeatures, 1, self.sparse, id)
         rnf.train(self.data, self.validation, self.nbEpochs)
         z = [None] * len(data)
         for j in range(len(data)):
@@ -34,7 +33,7 @@ class RNF1(Forest):
 
     def evaluate(self, data):
         z = [0] * len(data)
-        res = Parallel(n_jobs=1)(
+        res = Parallel(n_jobs=8)(
             delayed(self.thread)(i, data) for i in range(self.nbIter)
         )
         for j in range(len(data)):
@@ -44,8 +43,9 @@ class RNF1(Forest):
         return utils.evaluate(z, [y[0] for _, y in data])
 
 class RNF2(Forest):
-    def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True):
+    def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True, id=0):
         super().__init__(nbIter)
+        self.id = id
         self.nbInputs     = nbInputs
         self.maxProf      = maxProf
         self.nbFeatures   = nbFeatures
@@ -126,7 +126,7 @@ class RNF2(Forest):
                 for j in range(len(self.connectivity[i])):
                     self.connectivity[i][j] = np.ones(self.connectivity[i][j].shape)
 
-        self.nn = NN(0, self.run, self.nbInputs, self.layers, connectivity=self.connectivity, weight=weight, bias=bias)
+        self.nn = NN(self.id, self.run, self.nbInputs, self.layers, connectivity=self.connectivity, weight=weight, bias=bias)
 
         self.nn.train(data, validation, nbEpochs)
 
