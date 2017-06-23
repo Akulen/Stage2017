@@ -1,7 +1,7 @@
 from dt import RF
 from math import sqrt
 from nn import NNF
-from rnf import RNF
+from rnf import RNF1, RNF2
 from sklearn.ensemble import RandomForestRegressor
 import numpy as np
 import random
@@ -35,15 +35,18 @@ for i, data in enumerate(dataset):
     print(datafiles[i][0])
     nbInputs = datafiles[i][1]
     rmse = []
-    for _ in range(10):
+    for _ in range(3):
         #solver = RF(nbInputs, 6, 30)
-        solver = NNF(nbInputs, 128, 30)
-        #solver = RNF(nbInputs, 6, 128, 30)
+        #solver = NNF(nbInputs, 128, 30)
+        #solver = RNF1(nbInputs, 6, 128, 30)
+        #solver = RNF1(nbInputs, 6, 128, 3, False)
+        #solver = RNF2(nbInputs, 6, 128, 30)
+        solver = RNF2(nbInputs, 6, 128, 3, False)
 
         rmse.append(evaluateSolver(solver, data)[0])
 
-    print("RMSE: %.4f" % (sum(rmse) / len(rmse)))
-    print("devi: %.4f" % np.std(rmse))
+    print("%.2f (" % (sum(rmse) / len(rmse)), end='')
+    print("%.2f)" % np.std(rmse))
 
 #x, y = map(list, zip(* data))
 #y = [yy[0] for yy in y]

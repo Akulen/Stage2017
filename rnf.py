@@ -9,13 +9,48 @@ import random
 import tensorflow as tf
 import utils
 
-class RNF(Forest):
-    def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1):
+class RNF1(Forest):
+    def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True):
         super().__init__(nbIter)
-        self.nbInputs = nbInputs
-        self.maxProf = maxProf
-        self.nbFeatures = nbFeatures
-        self.layers = [
+        self.nbInputs     = nbInputs
+        self.maxProf      = maxProf
+        self.nbFeatures   = nbFeatures
+        self.sparse       = sparse
+
+    def train(self, data, validation, nbEpochs=100):
+        self.data       = data
+        self.validation = validation
+        self.nbEpochs   = nbEpochs
+
+    def thread(self, id, data):
+        # TODO add id
+        rnf = RNF2(self.nbInputs, self.maxProf, self.nbFeatures, 1, self.sparse)
+        rnf.train(self.data, self.validation, self.nbEpochs)
+        z = [None] * len(data)
+        for j in range(len(data)):
+            x, y = data[j]
+            z[j] = rnf.nn.solve([x])[0][0]
+        return z
+
+    def evaluate(self, data):
+        z = [0] * len(data)
+        res = Parallel(n_jobs=1)(
+            delayed(self.thread)(i, data) for i in range(self.nbIter)
+        )
+        for j in range(len(data)):
+            for i in range(self.nbIter):
+                z[j] += res[i][j]
+            z[j] = z[j] / self.nbIter
+        return utils.evaluate(z, [y[0] for _, y in data])
+
+class RNF2(Forest):
+    def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True):
+        super().__init__(nbIter)
+        self.nbInputs     = nbInputs
+        self.maxProf      = maxProf
+        self.nbFeatures   = nbFeatures
+        self.sparse       = sparse
+        self.layers       = [
             (nbFeatures, 100),
             (nbFeatures, 1)
         ]
@@ -85,6 +120,11 @@ class RNF(Forest):
 
                     weight[2][i][j][0]  = self.dt[i].tree.tree_.value[j] / 2 / self.nbIter
                     bias[2][i][0]      += self.dt[i].tree.tree_.value[j] / 2 / self.nbIter
+
+        if not self.sparse:
+            for i in range(len(self.connectivity)):
+                for j in range(len(self.connectivity[i])):
+                    self.connectivity[i][j] = np.ones(self.connectivity[i][j].shape)
 
         self.nn = NN(0, self.run, self.nbInputs, self.layers, connectivity=self.connectivity, weight=weight, bias=bias)
 

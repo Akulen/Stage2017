@@ -178,13 +178,13 @@ class NNF(Forest):
         return z
 
     def train(self, data, validation, nbEpochs=100):
-        self.data = data
+        self.data       = data
         self.validation = validation
-        self.nbEpochs = nbEpochs
+        self.nbEpochs   = nbEpochs
 
     def evaluate(self, data):
         z = [0] * len(data)
-        res = Parallel(n_jobs=1)(
+        res = Parallel(n_jobs=16)(
             delayed(self.thread)(i, data) for i in range(self.nbIter)
         )
         for j in range(len(data)):
