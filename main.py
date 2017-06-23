@@ -23,21 +23,23 @@ datafiles = [("autoMPG",     7  ),
              ("forest",      10 ),
              ("wisconsin",   32 ),
              ("concrete",    8  )]
-dataset = [getData(filename, 1, nbInputs) for filename, nbInputs in datafiles]
 
-for i, data in enumerate(dataset):
-    print(datafiles[i][0])
-    nbInputs = datafiles[i][1]
+maxProf    = 6
+nbNeurones = 2**(maxProf+1)
+nbIter     = 5
+
+for i, (filename, nbInputs) in enumerate(datafiles[2:3]):
+    print("## " + filename)
     rmse     = []
     for _ in range(3):
-        #solver = RF(nbInputs, 6, 30)
-        #solver = NNF(nbInputs, 128, 30)
-        #solver = RNF1(nbInputs, 6, 128, 30)
-        #solver = RNF1(nbInputs, 6, 128, 3, False)
-        #solver = RNF2(nbInputs, 6, 128, 30)
-        solver = RNF1(nbInputs, 6, 128, 3, False)
+        #solver = NNF(nbInputs, nbNeurones, nbIter)
+        solver = RF(nbInputs, nbNeurones, nbIter)
+        #solver = RNF1(nbInputs, maxProf, nbNeurones, nbIter)
+        #solver = RNF1(nbInputs, maxProf, nbNeurones, nbIter, sparse=False)
+        #solver = RNF2(nbInputs, maxProf, nbNeurones, nbIter)
+        #solver = RNF2(nbInputs, maxProf, nbNeurones, nbIter, sparse=False)
 
-        rmse.append(evaluateSolver(solver, data)[0])
+        rmse.append(evaluateSolver(solver, getData(filename, 1, nbInputs))[0])
 
     print("%5.2f (" % (sum(rmse) / len(rmse)), end='')
     print("%5.2f)" % np.std(rmse))
