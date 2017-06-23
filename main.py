@@ -39,7 +39,7 @@ for i, (filename, nbInputs) in enumerate(datafiles[2:3]):
         #solver = RNF2(nbInputs, maxProf, nbNeurones, nbIter)
         #solver = RNF2(nbInputs, maxProf, nbNeurones, nbIter, sparse=False)
 
-        rmse.append(evaluateSolver(solver, getData(filename, 1, nbInputs))[0])
+        rmse.append(evaluateSolver(solver, getData(filename, nbInputs, 1))[0])
 
     print("%5.2f (" % (sum(rmse) / len(rmse)), end='')
     print("%5.2f)" % np.std(rmse))

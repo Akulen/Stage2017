@@ -50,6 +50,6 @@ def getData(filename, nbX, nbY):
     data = []
     for line in open("./data/" + filename + "/" + filename + ".data", "r"):
         raw = list(map(float, line.split()))
-        data.append((raw[nbX:nbX+nbY], raw[0:nbX]))
+        data.append((raw[nbY:nbY+nbX], raw[0:nbY]))
     return data
 
