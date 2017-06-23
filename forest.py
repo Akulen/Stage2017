@@ -1,17 +1,17 @@
 import utils
+from abc    import ABCMeta
+from math   import sqrt
 from solver import Solver
-from math import sqrt
-
-def square(x):
-    return x*x
 
 class Forest(object):
+    __metaclass__ = ABCMeta
+
     def __init__(self, nbIter=-1):
         if nbIter == -1:
             nbIter = 30
         self.nbIter = nbIter
-        self.run = utils.custom_iso()
-        self.iters = [Solver(i, self.run, 0) for i in range(self.nbIter)]
+        self.run    = utils.custom_iso()
+        self.iters  = [None for _ in range(self.nbIter)]
 
     def train(self, data, validation, nbEpochs=100, batchSize=32):
         for it in self.iters:
