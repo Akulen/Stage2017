@@ -12,11 +12,12 @@ def randomRange(fan_in, fan_out):
     return sqrt(6 / (fan_in + fan_out))
 
 class NN(Solver):
-    def __init__(self, id, run, nbInputs, layers, connectivity=None, weight=None, bias=None, sess = None):
+    def __init__(self, id, run, nbInputs, layers, connectivity=None, weight=None, bias=None, sess = None, debug=False):
         super().__init__(id, run, nbInputs)
-        self.layers = layers
+        self.layers    = layers
         self.summaries = []
-        self.layers = []
+        self.layers    = []
+        self.debug     = debug
 
         gamma = [y for _, y in layers]
         self.dimensions = [nbInputs] + [x for x, _ in layers] + [1]
@@ -76,10 +77,12 @@ class NN(Solver):
             self.sess = sess
 
         #self.summaries.append(tf.summary.scalar("loss/" + str(self.id), tf.sqrt(self.loss)))
-        self.summaries.append(tf.summary.scalar("vloss/" + str(self.id), tf.sqrt(self.vloss)))
+        if self.debug:
+            self.summaries.append(tf.summary.scalar("vloss/" + str(self.id), tf.sqrt(self.vloss)))
         #self.summaries.append(tf.summary.histogram("lossHisto", self.loss))
         self.summary = tf.summary.merge_all()
-        self.train_writer = tf.summary.FileWriter('./train/'+self.run, self.sess.graph)
+        if self.debug:
+            self.train_writer = tf.summary.FileWriter('./train/'+self.run, self.sess.graph)
         #self.test_writer = tf.summary.FileWriter('./test/'+self.run, self.sess.graph)
 
         self.sess.run(tf.global_variables_initializer())
@@ -136,10 +139,13 @@ class NN(Solver):
                         feed_dict={self.x: batch_xs, self.y: batch_ys})
                 #if j == 0:
                 #    self.train_writer.add_summary(summary, i)
-            summary, closs = self.sess.run([self.summaries[0], self.vloss], feed_dict={self.x: vx, self.y: vy})
-            self.train_writer.add_summary(summary, i)
-            if i % 10 == 9:
-                print("Epoch #" + str(i) + ": " + str(closs))
+            if self.debug:
+                summary, closs = self.sess.run([self.summaries[0], self.vloss], feed_dict={self.x: vx, self.y: vy})
+                self.train_writer.add_summary(summary, i)
+                if i % 10 == 9:
+                    print("Epoch #" + str(i) + ": " + str(closs))
+            else:
+                closs = self.sess.run(self.vloss, feed_dict={self.x: vx, self.y: vy})
             if closs < loss:
                 loss = closs
                 saver.save(self.sess, "/tmp/sess" + str(self.id) + ".ckpt")

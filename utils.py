@@ -44,10 +44,12 @@ def evaluate(z, y):
     #plt.show()
     rmse = sqrt(mse)
     devi = np.std(sqError)
-    #my = sum(y) / len(y)
-    #resu = [square(z[i] - y[i]) for i in range(len(y))]
-    #rmse = sqrt(sum(resu) / len(y))
-    #resu = [square(z[i] - my) for i in range(len(y))]
-    #devi = sqrt(sum(resu) / len(y))
     return rmse, devi
+
+def getData(filename, nbX, nbY):
+    data = []
+    for line in open("./data/" + filename + "/" + filename + ".data", "r"):
+        raw = list(map(float, line.split()))
+        data.append((raw[nbX:nbX+nbY], raw[0:nbX]))
+    return data
 
