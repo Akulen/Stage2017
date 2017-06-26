@@ -8,6 +8,7 @@ from tensorflow       import Session
 from utils            import getData
 import numpy as np
 import random
+import sys
 
 def evaluateSolver(solver, data):
     random.shuffle(data)
@@ -26,22 +27,27 @@ datafiles = [("autoMPG",     7  ),
              ("wisconsin",   32 ),
              ("concrete",    8  )]
 
+solvers = [lambda n : NNF(n, nbNeurones, nbIter, sess=sess, pref=str(id)),
+           lambda n : RF(n, nbNeurones, nbIter, pref=str(id)),
+           lambda n : RNF1(n, maxProf, nbNeurones, nbIter, sess=sess,
+                pref=str(id)),
+           lambda n : RNF1(n, maxProf, nbNeurones, nbIter, sparse=False,
+                sess=sess, pref=str(id)),
+           lambda n : RNF2(n, maxProf, nbNeurones, nbIter, sess=sess,
+                pref=str(id)),
+           lambda n : RNF2(n, maxProf, nbNeurones, nbIter, sparse=False,
+                sess=sess, pref=str(id))]
+assert len(sys.argv) > 1
+iSolver = int(sys.argv[1])
+assert iSolver < len(solvers)
+
 maxProf    = 6
 nbNeurones = 2**maxProf
 nbIter     = 30
 sess       = Session()
 
 def createSolver(id, nbInputs):
-    #solver = NNF(nbInputs, nbNeurones, nbIter, sess=sess, pref=str(id))
-    #solver = RF(nbInputs, nbNeurones, nbIter, pref=str(id))
-    #solver = RNF1(nbInputs, maxProf, nbNeurones, nbIter, sess=sess,
-    #        pref=str(id))
-    #solver = RNF1(nbInputs, maxProf, nbNeurones, nbIter, sparse=False,
-    #        sess=sess, pref=str(id))
-    solver = RNF2(nbInputs, maxProf, nbNeurones, nbIter, sess=sess,
-            pref=str(id))
-    #solver = RNF2(nbInputs, maxProf, nbNeurones, nbIter, sparse=False,
-    #        sess=sess, pref=str(id))
+    solver = solvers[iSolver](nbInputs)
     return solver
 
 def thread(id, filename, nbInputs):
