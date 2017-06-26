@@ -1,8 +1,10 @@
 from dt               import RF
+from joblib           import Parallel, delayed
 from math             import sqrt
 from nn               import NNF
 from rnf              import RNF1, RNF2
 from sklearn.ensemble import RandomForestRegressor
+from tensorflow       import Session
 from utils            import getData
 import numpy as np
 import random
@@ -25,22 +27,35 @@ datafiles = [("autoMPG",     7  ),
              ("concrete",    8  )]
 
 maxProf    = 6
-nbNeurones = 2**(maxProf+1)
-nbIter     = 5
+nbNeurones = 2**maxProf
+nbIter     = 30
+sess       = Session()
 
-for i, (filename, nbInputs) in enumerate(datafiles[2:3]):
-    print("## " + filename)
-    rmse     = []
-    for _ in range(3):
-        #solver = NNF(nbInputs, nbNeurones, nbIter)
-        solver = RF(nbInputs, nbNeurones, nbIter)
-        #solver = RNF1(nbInputs, maxProf, nbNeurones, nbIter)
-        #solver = RNF1(nbInputs, maxProf, nbNeurones, nbIter, sparse=False)
-        #solver = RNF2(nbInputs, maxProf, nbNeurones, nbIter)
-        #solver = RNF2(nbInputs, maxProf, nbNeurones, nbIter, sparse=False)
+def createSolver(id, nbInputs):
+    #solver = NNF(nbInputs, nbNeurones, nbIter, sess=sess, pref=str(id))
+    #solver = RF(nbInputs, nbNeurones, nbIter, pref=str(id))
+    #solver = RNF1(nbInputs, maxProf, nbNeurones, nbIter, sess=sess,
+    #        pref=str(id))
+    #solver = RNF1(nbInputs, maxProf, nbNeurones, nbIter, sparse=False,
+    #        sess=sess, pref=str(id))
+    solver = RNF2(nbInputs, maxProf, nbNeurones, nbIter, sess=sess,
+            pref=str(id))
+    #solver = RNF2(nbInputs, maxProf, nbNeurones, nbIter, sparse=False,
+    #        sess=sess, pref=str(id))
+    return solver
 
-        rmse.append(evaluateSolver(solver, getData(filename, nbInputs, 1))[0])
+def thread(id, filename, nbInputs):
+    solver = createSolver(id, nbInputs)
+    return evaluateSolver(solver, getData(filename, nbInputs, 1))
 
-    print("%5.2f (" % (sum(rmse) / len(rmse)), end='')
-    print("%5.2f)" % np.std(rmse))
+if __name__ == '__main__':
+    for i, (filename, nbInputs) in enumerate(datafiles):
+        print("## " + filename)
+
+        rmse = Parallel(n_jobs=4)(
+            delayed(thread)(j, filename, nbInputs) for j in range(10)
+        )
+
+        print("%5.2f (" % (sum(rmse) / len(rmse)), end='')
+        print("%5.2f)" % np.std(rmse))
 

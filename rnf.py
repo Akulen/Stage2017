@@ -1,141 +1,83 @@
-from dt import DT
-from forest import Forest
+from dt     import DT
+from forest import Forest, ParallelForest
 from joblib import Parallel, delayed
-from math import sqrt
-from nn import NN
+from math   import sqrt
+from nn     import NN
 from solver import Solver
-import numpy as np
+import numpy      as np
 import random
 import tensorflow as tf
 import utils
 
-class RNF1(Forest):
-    def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True):
-        super().__init__(nbIter)
-        self.nbInputs     = nbInputs
-        self.maxProf      = maxProf
-        self.nbFeatures   = nbFeatures
-        self.sparse       = sparse
+class RNF1(ParallelForest):
+    def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True,
+            sess=None, pref=""):
+        pp = "sparse-" if sparse else ""
+        super().__init__(nbIter, pp + "random-neural-" + pref)
+        self.nbInputs   = nbInputs
+        self.maxProf    = maxProf
+        self.nbFeatures = nbFeatures
+        self.sparse     = sparse
+        self.sess       = sess
 
-    def train(self, data, validation, nbEpochs=100):
-        self.data       = data
-        self.validation = validation
-        self.nbEpochs   = nbEpochs
-
-    def thread(self, id, data):
-        rnf = RNF2(self.nbInputs, self.maxProf, self.nbFeatures, 1, self.sparse, id)
-        rnf.train(self.data, self.validation, self.nbEpochs)
-        z = [None] * len(data)
-        for j in range(len(data)):
-            x, y = data[j]
-            z[j] = rnf.nn.solve([x])[0][0]
-        return z
-
-    def evaluate(self, data):
-        z = [0] * len(data)
-        res = Parallel(n_jobs=8)(
-            delayed(self.thread)(i, data) for i in range(self.nbIter)
-        )
-        for j in range(len(data)):
-            for i in range(self.nbIter):
-                z[j] += res[i][j]
-            z[j] = z[j] / self.nbIter
-        return utils.evaluate(z, [y[0] for _, y in data])
+    def createSolver(self, id):
+        return RNF2(self.nbInputs, self.maxProf, self.nbFeatures, 1,
+                self.sparse, id, sess=self.sess)
 
 class RNF2(Forest):
-    def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True, id=0):
-        super().__init__(nbIter)
+    def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True,
+            id=0, sess=None, pref=""):
+        pp = "sparse-" if sparse else ""
+        super().__init__(nbIter, pp + "random-neural-" + pref)
         self.id = id
-        self.nbInputs     = nbInputs
-        self.maxProf      = maxProf
-        self.nbFeatures   = nbFeatures
-        self.sparse       = sparse
-        self.layers       = [
-            (nbFeatures, 100),
-            (nbFeatures, 1)
-        ]
-        self.connectivity = [
-            [],
-            []
+        self.nbInputs   = nbInputs
+        self.maxProf    = maxProf
+        self.nbFeatures = nbFeatures
+        self.sparse     = sparse
+        self.sess       = sess
+        self.layers     = [
+            (nbFeatures-1, 100),
+            (nbFeatures,   1  )
         ]
 
-        self.dt = [DT(i, self.run, self.nbInputs, self.nbInputs//3, self.maxProf) for i in range(self.nbIter)]
+        self.dt = [DT(i, self.run, self.nbInputs, self.nbInputs//3, self.maxProf)
+                for i in range(self.nbIter)]
 
     def train(self, data, validation, nbEpochs=100):
         for i in range(self.nbIter):
             batch = utils.selectBatch(data, len(data)//3, replace=False, unzip=False)
             self.dt[i].train(batch, validation, nbEpochs)
 
-        weight = [
-            [],
-            [],
-            []
-        ]
-        bias = [
-            [],
-            [],
-            []
-            #np.array([sum([sum([v[0][0] for v in dt.tree.tree_.value]) / 2
-            #    for dt in self.dt]) / self.nbIter])
-        ]
+        connectivity = [[] for _ in range(2)]
+        weight       = [[] for _ in range(3)]
+        bias         = [[] for _ in range(3)]
+
         for i in range(self.nbIter):
-            father = [-1] * self.dt[i].tree.tree_.node_count
-            value = [0] * self.dt[i].tree.tree_.node_count
-            for j in range(self.dt[i].tree.tree_.node_count):
-                if self.dt[i].tree.tree_.children_left[j] >= 0:
-                    father[self.dt[i].tree.tree_.children_left[j]]  = j
-                    father[self.dt[i].tree.tree_.children_right[j]] = j
-                    value[self.dt[i].tree.tree_.children_left[j]]   = 1.
-                    value[self.dt[i].tree.tree_.children_right[j]]  = -1.
+            c, w, b = utils.dt2nn(self.dt[i], self.nbInputs, self.layers[0][0],
+                    self.layers[1][0], self.nbIter)
 
-            self.connectivity[0].append(np.zeros((self.nbInputs, self.layers[0][0])))
-            weight[0].append(np.zeros((self.nbInputs, self.layers[0][0])))
-            bias[0].append(np.zeros(self.layers[0][0]))
-
-            self.connectivity[1].append(np.zeros((self.layers[0][0], self.layers[1][0])))
-            weight[1].append(np.zeros((self.layers[0][0], self.layers[1][0])))
-            bias[1].append(np.zeros(self.layers[1][0]))
-
-            weight[2].append(np.zeros((self.layers[1][0], 1)))
-            bias[2].append(np.zeros(1))
-
-            for j in range(self.dt[i].tree.tree_.node_count):
-                if self.dt[i].tree.tree_.feature[j] >= 0:
-                    self.connectivity[0][i][self.dt[i].tree.tree_.feature[j]][j] = 1.
-                    weight[0][i][self.dt[i].tree.tree_.feature[j]][j]            = 1.
-                    bias[0][i][j] = - self.dt[i].tree.tree_.threshold[j]
-                else:
-                    v   = value[j]
-                    cur = father[j]
-                    l   = 0
-                    while cur != -1:
-                        self.connectivity[1][i][cur][j]  = 1.
-                        weight[1][i][cur][j]             = v
-
-                        l   += 1
-                        v    = value[cur]
-                        cur  = father[cur]
-
-                    bias[1][i][j] = 0.5 - l
-
-                    weight[2][i][j][0]  = self.dt[i].tree.tree_.value[j] / 2 / self.nbIter
-                    bias[2][i][0]      += self.dt[i].tree.tree_.value[j] / 2 / self.nbIter
+            for j in range(3):
+                if j < 2:
+                    connectivity[j].append(c[j])
+                weight[j].append(w[j])
+                bias[j].append(b[j])
 
         if not self.sparse:
-            for i in range(len(self.connectivity)):
-                for j in range(len(self.connectivity[i])):
-                    self.connectivity[i][j] = np.ones(self.connectivity[i][j].shape)
+            for i in range(len(connectivity)):
+                for j in range(len(connectivity[i])):
+                    connectivity[i][j] = np.ones(connectivity[i][j].shape)
 
-        self.nn = NN(self.id, self.run, self.nbInputs, self.layers, connectivity=self.connectivity, weight=weight, bias=bias)
+        self.nn = NN(self.id, self.run, self.nbInputs, self.layers,
+                connectivity=connectivity, weight=weight, bias=bias,
+                sess=self.sess, pref=self.pref)
 
         self.nn.train(data, validation, nbEpochs)
 
     def evaluate(self, data):
-        z = [None] * len(data)
-        for j in range(len(data)):
-            x, y = data[j]
-            z[j] = self.nn.solve([x])[0][0]
-        return utils.evaluate(z, [y[0] for _, y in data])
+        return self.nn.evaluate(data)
+
+    def solve(self, x):
+        return self.nn.solve(x)
 
 
 

@@ -7,13 +7,56 @@ import re
 def custom_iso(clean=''):
     return re.sub('[\.].*', clean, datetime.datetime.now().isoformat())
 
+def dt2nn(dt, a, b, c, n):
+    connectivity = [
+        np.zeros((a, b)),
+        np.zeros((b, c))
+    ]
+    weight = [
+        np.zeros((a, b)),
+        np.zeros((b, c)),
+        np.zeros((c, 1))
+    ]
+    bias = [
+        np.zeros(b),
+        np.zeros(c),
+        np.zeros(1)
+    ]
+
+    tree         = dt.tree.tree_
+    nbNodes      = tree.node_count
+    father, side = dt.makeTree()
+    nodes, leafs = dt.indexNodes(), dt.indexLeafs()
+    nodeMap      = revIndex(nodes)
+
+    for j, node in enumerate(nodes):
+        connectivity[0][tree.feature[node]][j] = 1.
+        weight[0][tree.feature[node]][j]       = 1.
+        bias[0][j]                             = - tree.threshold[node]
+    
+    for j, leaf in enumerate(leafs):
+        l   = 0
+        v   = side[leaf]
+        cur = father[leaf]
+        while cur != -1:
+            curI                     = nodeMap[cur]
+            connectivity[1][curI][j] = 1.
+            weight[1][curI][j]       = v
+
+            l   += 1
+            v    = side[cur]
+            cur  = father[cur]
+
+        bias[1][j] = 0.5 - l
+
+        weight[2][j][0]  = tree.value[leaf] / (2 * n)
+        bias[2][0]      += weight[2][j][0]
+
+    return connectivity, weight, bias
+
 def evaluate(z, y):
-    z       = np.array(z)
-    y       = np.array(y)
-    sqError = sq(z-y)
-    rmse    = sqrt(np.mean(sqError))
-    devi    = np.std(sqError)
-    return rmse, devi
+    z, y = np.array(z), np.array(y)
+    return rmse(y, z)
 
 def getData(filename, nbX, nbY):
     data = []
@@ -22,6 +65,15 @@ def getData(filename, nbX, nbY):
         data.append((raw[nbY:nbY+nbX], raw[0:nbY]))
     return data
 
+def revIndex(index):
+    mp = {}
+    for i in range(len(index)):
+        mp[index[i]] = i
+    return mp
+
+def rmse(a, b):
+    return sqrt(np.mean(sq(a-b)))
+
 def selectBatch(data, batchSize, replace=True, unzip=True):
     ret = []
     for i in range(batchSize):
@@ -29,8 +81,12 @@ def selectBatch(data, batchSize, replace=True, unzip=True):
         ret.append(data[j])
         if not replace:
             data[i], data[j] = data[j], data[i]
-    return map(list, zip(* data[:batchSize])) if unzip else data[:batchSize]
+    return map(list, zip(* ret)) if unzip else ret
 
 def sq(x):
     return x*x
+
+def zipData(data):
+    x, y = map(list, zip(* data))
+    return x, [yy[0] for yy in y]
 
