@@ -43,7 +43,7 @@ class ParallelForest(Forest):
         pass
 
     def thread(self, id, data):
-        solver = self.createSolver(self.pref + str(id), self)
+        solver = self.createSolver(self.pref + str(id))
         solver.train(self.data, self.validation, self.nbEpochs)
 
         z = [None] * len(data)

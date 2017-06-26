@@ -43,8 +43,8 @@ assert iSolver < len(solvers)
 
 maxProf    = 6
 nbNeurones = 2**maxProf
-nbIter     = 30
-sess       = Session()
+nbIter     = 3
+sess       = None # Session()
 
 def createSolver(id, nbInputs):
     solver = solvers[iSolver](nbInputs)
@@ -58,8 +58,8 @@ if __name__ == '__main__':
     for i, (filename, nbInputs) in enumerate(datafiles):
         print("## " + filename)
 
-        rmse = Parallel(n_jobs=4)(
-            delayed(thread)(j, filename, nbInputs) for j in range(10)
+        rmse = Parallel(n_jobs=8)(
+            delayed(thread)(j, filename, nbInputs) for j in range(3)
         )
 
         print("%5.2f (" % (sum(rmse) / len(rmse)), end='')
