@@ -61,7 +61,8 @@ class RNF2(Forest):
         bias         = [[] for _ in range(3)]
 
         for i in range(self.nbIter):
-            self.dt[i].tree = self.et.estimators_[i]
+            if use_et:
+                self.dt[i].tree = self.et.estimators_[i]
             c, w, b = utils.dt2nn(self.dt[i], self.nbInputs, self.layers[0][0],
                     self.layers[1][0], self.nbIter)
 
