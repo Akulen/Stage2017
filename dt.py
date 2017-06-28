@@ -31,8 +31,8 @@ class DT(Solver):
             if self.tree.tree_.children_left[i] >= 0:
                 father[self.tree.tree_.children_left[i]]  = i
                 father[self.tree.tree_.children_right[i]] = i
-                side[self.tree.tree_.children_left[i]]    = 1.
-                side[self.tree.tree_.children_right[i]]   = -1.
+                side[self.tree.tree_.children_left[i]]    = -1.
+                side[self.tree.tree_.children_right[i]]   = 1.
         return father, side
 
     def indexNodes(self):
@@ -55,7 +55,7 @@ class RF(Forest):
         self.nbInputs = nbInputs
         self.maxProf  = maxProf
 
-        maxFeatures   = nbInputs // 3
+        maxFeatures   = (nbInputs + 2) // 3
         for i in range(self.nbIter):
             self.iters[i] = DT(i, self.run, self.nbInputs, maxFeatures, self.maxProf)
 
@@ -63,6 +63,11 @@ class RF(Forest):
         for it in self.iters:
             batch = utils.selectBatch(data, len(data)//3, replace=False, unzip=False)
             it.train(batch, validation, nbEpochs, batchSize)
+
+    def solve(self, x):
+        res = [it.solve(x)[0] for it in self.iters]
+        z = sum(res) / self.nbIter
+        return z
 
 
 
