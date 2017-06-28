@@ -1,9 +1,10 @@
-from dt     import DT
-from forest import Forest, ParallelForest
-from joblib import Parallel, delayed
-from math   import sqrt
-from nn     import NN
-from solver import Solver
+from dt               import DT
+from forest           import Forest,   ParallelForest
+from joblib           import Parallel, delayed
+from math             import sqrt
+from nn               import NN
+from sklearn.ensemble import ExtraTreesRegressor
+from solver           import Solver
 import numpy      as np
 import random
 import tensorflow as tf
@@ -13,7 +14,7 @@ class RNF1(ParallelForest):
     def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True,
             sess=None, pref=""):
         pp = "sparse-" if sparse else ""
-        super().__init__(nbIter, pp + "random-neural-" + pref)
+        super().__init__(nbIter, pref=pp + "random-neural-" + pref)
         self.nbInputs   = nbInputs
         self.maxProf    = maxProf
         self.nbFeatures = nbFeatures
@@ -24,12 +25,14 @@ class RNF1(ParallelForest):
         return RNF2(self.nbInputs, self.maxProf, self.nbFeatures, 1,
                 self.sparse, id, sess=self.sess)
 
+
+
 class RNF2(Forest):
     def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True,
             id=0, sess=None, pref=""):
         pp = "sparse-" if sparse else ""
-        super().__init__(nbIter, pp + "random-neural-" + pref)
-        self.id = id
+        super().__init__(nbIter, pref=pp + "random-neural-" + pref)
+        self.id         = id
         self.nbInputs   = nbInputs
         self.maxProf    = maxProf
         self.nbFeatures = nbFeatures
@@ -40,19 +43,26 @@ class RNF2(Forest):
             (nbFeatures,   1  )
         ]
 
-        self.dt = [DT(i, self.run, self.nbInputs, self.nbInputs//3, self.maxProf)
+        self.dt = [DT(i, self.run, self.nbInputs, (self.nbInputs+2)//3, self.maxProf)
                 for i in range(self.nbIter)]
+        self.et = ExtraTreesRegressor(n_estimators=self.nbIter)
 
-    def train(self, data, validation, nbEpochs=100):
-        for i in range(self.nbIter):
-            batch = utils.selectBatch(data, len(data)//3, replace=False, unzip=False)
-            self.dt[i].train(batch, validation, nbEpochs)
+    def train(self, data, validation, nbEpochs=100, use_et=False):
+        if not use_et:
+            for i in range(self.nbIter):
+                batch = utils.selectBatch(data, len(data)//3, replace=False, unzip=False)
+                self.dt[i].train(batch, validation, nbEpochs)
+        else:
+            x, y = map(np.array, zip(* data))
+            y = [yy[0] for yy in y]
+            self.et.fit(x.reshape(-1, 1), y)
 
         connectivity = [[] for _ in range(2)]
         weight       = [[] for _ in range(3)]
         bias         = [[] for _ in range(3)]
 
         for i in range(self.nbIter):
+            self.dt[i].tree = self.et.estimators_[i]
             c, w, b = utils.dt2nn(self.dt[i], self.nbInputs, self.layers[0][0],
                     self.layers[1][0], self.nbIter)
 
