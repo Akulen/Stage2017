@@ -27,15 +27,15 @@ datafiles = [("autoMPG",     7  ),
              ("wisconsin",   32 ),
              ("concrete",    8  )]
 
-solvers = [lambda n : NNF(n, nbNeurones, nbIter, sess=sess, pref=str(id)),
-           lambda n : RF(n, nbNeurones, nbIter, pref=str(id)),
-           lambda n : RNF1(n, maxProf, nbNeurones, nbIter, sess=sess,
+solvers = [lambda id, n : NNF(n, nbNeurones, nbIter, sess=sess, pref=str(id)),
+           lambda id, n : RF(n, nbNeurones, nbIter, pref=str(id)),
+           lambda id, n : RNF1(n, maxProf, nbNeurones, nbIter, sess=sess,
                 pref=str(id)),
-           lambda n : RNF1(n, maxProf, nbNeurones, nbIter, sparse=False,
+           lambda id, n : RNF2(n, maxProf, nbNeurones, nbIter, sess=sess,
+                pref=str(id)),
+           lambda id, n : RNF1(n, maxProf, nbNeurones, nbIter, sparse=False,
                 sess=sess, pref=str(id)),
-           lambda n : RNF2(n, maxProf, nbNeurones, nbIter, sess=sess,
-                pref=str(id)),
-           lambda n : RNF2(n, maxProf, nbNeurones, nbIter, sparse=False,
+           lambda id, n : RNF2(n, maxProf, nbNeurones, nbIter, sparse=False,
                 sess=sess, pref=str(id))]
 assert len(sys.argv) > 1
 iSolver = int(sys.argv[1])
@@ -47,7 +47,7 @@ nbIter     = 3
 sess       = None # Session()
 
 def createSolver(id, nbInputs):
-    solver = solvers[iSolver](nbInputs)
+    solver = solvers[iSolver](id, nbInputs)
     return solver
 
 def thread(id, filename, nbInputs):
