@@ -48,21 +48,26 @@ class ParallelForest(Forest):
 
         z = [None] * len(data)
         for j in range(len(data)):
-            x, y = data[j]
+            x = data[j]
             z[j] = solver.solve([x])[0][0]
         return z
 
     def evaluate(self, data):
+        x = [_x for _x, _ in data]
+        z = self.solve(x)
+        return utils.evaluate(z, [y[0] for _, y in data])
+
+    def solve(self, data):
         z = [0] * len(data)
         res = Parallel(n_jobs=self.nbJobs)(
-            delayed(self.thread)(i, data) for i in range(self.nbIter)
+            delayed(self.thread2)(i, data) for i in range(self.nbIter)
         )
 
         for j in range(len(data)):
             for i in range(self.nbIter):
                 z[j] += res[i][j]
             z[j] = z[j] / self.nbIter
-        return utils.evaluate(z, [y[0] for _, y in data])
+        return z
 
 
 
