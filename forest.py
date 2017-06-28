@@ -60,7 +60,7 @@ class ParallelForest(Forest):
     def solve(self, data):
         z = [0] * len(data)
         res = Parallel(n_jobs=self.nbJobs)(
-            delayed(self.thread2)(i, data) for i in range(self.nbIter)
+            delayed(self.thread)(i, data) for i in range(self.nbIter)
         )
 
         for j in range(len(data)):
