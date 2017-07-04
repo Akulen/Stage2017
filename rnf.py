@@ -1,5 +1,6 @@
 from dt               import DT
-from forest           import Forest,   ParallelForest
+from forest           import Forest, ParallelForest
+from joblib           import Parallel, delayed
 from math             import sqrt
 from nn               import NN
 from sklearn.ensemble import ExtraTreesRegressor
@@ -11,7 +12,7 @@ import utils
 
 class RNF1(ParallelForest):
     def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True,
-            sess=None, pref=""):
+            use_et=False, sess=None, pref=""):
         pp = "sparse-" if sparse else ""
         super().__init__(nbIter, pref=pp + "random-neural-" + pref)
         self.nbInputs   = nbInputs
@@ -19,6 +20,7 @@ class RNF1(ParallelForest):
         self.nbFeatures = nbFeatures
         self.sparse     = sparse
         self.sess       = sess
+        self.use_et     = use_et
 
     def createSolver(self, id):
         return RNF2(self.nbInputs, self.maxProf, self.nbFeatures, 1,
@@ -28,7 +30,7 @@ class RNF1(ParallelForest):
 
 class RNF2(Forest):
     def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True,
-            id=0, sess=None, pref=""):
+            id=0, use_et=False, use_relu=False, sess=None, pref=""):
         pp = "sparse-" if sparse else ""
         super().__init__(nbIter, pref=pp + "random-neural-" + pref)
         self.id         = id
@@ -36,6 +38,8 @@ class RNF2(Forest):
         self.maxProf    = maxProf
         self.nbFeatures = nbFeatures
         self.sparse     = sparse
+        self.use_et     = use_et
+        self.use_relu   = use_relu
         self.sess       = sess
         self.layers     = [
             (nbFeatures-1, 100),
@@ -44,10 +48,10 @@ class RNF2(Forest):
 
         self.dt = [DT(i, self.run, self.nbInputs, (self.nbInputs+2)//3, self.maxProf)
                 for i in range(self.nbIter)]
-        self.et = ExtraTreesRegressor(n_estimators=self.nbIter)
+        self.et = ExtraTreesRegressor(n_estimators=self.nbIter, max_depth=self.maxProf)
 
-    def train(self, data, validation, nbEpochs=100, use_et=False):
-        if not use_et:
+    def train(self, data, validation, nbEpochs=100):
+        if not self.use_et:
             for i in range(self.nbIter):
                 batch = utils.selectBatch(data, len(data)//3, replace=False, unzip=False)
                 self.dt[i].train(batch, validation, nbEpochs)
@@ -61,7 +65,7 @@ class RNF2(Forest):
         bias         = [[] for _ in range(3)]
 
         for i in range(self.nbIter):
-            if use_et:
+            if self.use_et:
                 self.dt[i].tree = self.et.estimators_[i]
             c, w, b = utils.dt2nn(self.dt[i], self.nbInputs, self.layers[0][0],
                     self.layers[1][0], self.nbIter)
@@ -79,9 +83,9 @@ class RNF2(Forest):
 
         self.nn = NN(self.id, self.run, self.nbInputs, self.layers,
                 connectivity=connectivity, weight=weight, bias=bias,
-                sess=self.sess, pref=self.pref)
+                sess=self.sess, pref=self.pref, use_relu=self.use_relu)
 
-        self.nn.train(data, validation, nbEpochs)
+        return self.nn.train(data, validation, nbEpochs)
 
     def evaluate(self, data):
         return self.nn.evaluate(data)
