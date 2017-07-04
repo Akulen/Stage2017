@@ -65,4 +65,74 @@ def slt():
     plt.legend()
     plt.show()
 
-slt()
+def cube_show_slider(cube, axis=2, **kwargs):
+    """
+    Display a 3d ndarray with a slider to move along the third dimension.
+
+    Extra keyword arguments are passed to imshow
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.widgets import Slider, Button, RadioButtons
+
+    # check dim
+    if not cube.ndim == 3:
+        raise ValueError("cube should be an ndarray with ndim == 3")
+
+    # generate figure
+    fig = plt.figure()
+    ax = plt.subplot(111)
+    fig.subplots_adjust(left=0.25, bottom=0.25)
+
+    # select first image
+    s = [slice(0, 1) if i == axis else slice(None) for i in range(3)]
+    im = cube[s].squeeze()
+
+    # display image
+    l = ax.imshow(im, **kwargs)
+
+    # define slider
+    axcolor = 'lightgoldenrodyellow'
+    ax = fig.add_axes([0.25, 0.1, 0.65, 0.03], axisbg=axcolor)
+
+    slider = Slider(ax, 'Axis %i index' % axis, 0, cube.shape[axis] - 1,
+                    valinit=0, valfmt='%i')
+
+    def update(val):
+        ind = int(slider.val)
+        s = [slice(ind, ind + 1) if i == axis else slice(None)
+                 for i in range(3)]
+        im = cube[s].squeeze()
+        l.set_data(im, **kwargs)
+        fig.canvas.draw()
+
+    slider.on_changed(update)
+
+    plt.show()
+
+def embed():
+    import tensorflow as tf
+    import os
+    from tensorflow.contrib.tensorboard.plugins import projector
+
+    LOG_DIR = "./train/"
+    
+    # Create randomly initialized embedding weights which will be trained.
+    N = 10000 # Number of items (vocab size).
+    D = 200 # Dimensionality of the embedding.
+    embedding_var = tf.Variable(tf.random_normal([N,D]), name='word_embedding')
+
+    # Format: tensorflow/tensorboard/plugins/projector/projector_config.proto
+    config = projector.ProjectorConfig()
+
+    # You can add multiple embeddings. Here we add only one.
+    embedding = config.embeddings.add()
+    embedding.tensor_name = embedding_var.name
+    # Link this tensor to its metadata file (e.g. labels).
+    embedding.metadata_path = os.path.join(LOG_DIR, 'metadata.tsv')
+
+    # Use the same LOG_DIR where you stored your checkpoint.
+    summary_writer = tf.summary.FileWriter(LOG_DIR)
+
+    # The next line writes a projector_config.pbtxt in the LOG_DIR. TensorBoard will
+    # read this file during startup.
+    projector.visualize_embeddings(summary_writer, config)
