@@ -1,5 +1,6 @@
 from forest import ParallelForest
-from math import sqrt
+from joblib import Parallel, delayed
+from math   import sqrt
 from solver import Solver
 import numpy as np
 import random
@@ -12,7 +13,8 @@ def randomRange(fan_in, fan_out):
 
 class NN(Solver):
     def __init__(self, id, run, nbInputs, layers, connectivity=None,
-            weight=None, bias=None, sess=None, pref="", debug=False):
+            weight=None, bias=None, sess=None, pref="", debug=False,
+            use_relu=False):
         super().__init__(id, run, nbInputs)
         self.pref      = pref
         self.layers    = layers
@@ -53,10 +55,11 @@ class NN(Solver):
                 ny[j] = tf.sparse_matmul(y[y_id], W, b_is_sparse=True) + b
 
                 if i < len(layers):
-                    ny[j] = tf.tanh(gamma[i] * ny[j])
+                    fAct = tf.nn.relu if use_relu else tf.tanh
+                    ny[j] = fAct(gamma[i] * ny[j])
 
                 layer.append((W, b, ny[j]))
-            
+
             if i == len(layers):
                 ny = [tf.add_n(ny)]
 
@@ -118,9 +121,12 @@ class NN(Solver):
                     bias[i][j] = tf.constant(bias[i][j], dtype=tf.float32)
         return bias
 
-    def train(self, data, validation, nbEpochs=100, batchSize=32):
+    def train(self, data, validation, nbEpochs=100, batchSize=32, logEpochs=False):
         loss = float("inf")
         saver = tf.train.Saver()
+        if logEpochs:
+            testData = [[x] for x in np.linspace(0, 1, 10**3)]
+            fns = [None] * nbEpochs
         for i in range(nbEpochs):
             for j in range(len(data) // batchSize + 1):
                 batch_xs, batch_ys = utils.selectBatch(data, batchSize)
@@ -136,8 +142,14 @@ class NN(Solver):
             if closs < loss:
                 loss = closs
                 saver.save(self.sess, "/tmp/sess" + self.pref + "-" + str(self.id) + ".ckpt")
+                if logEpochs:
+                    y = self.solve(testData)
+                    fns[i] = [_y[0] for _y in y]
+            elif logEpochs:
+                fns[i] = fns[i-1][:]
         saver.restore(self.sess, "/tmp/sess" + self.pref + "-" + str(self.id) + ".ckpt")
-
+        if logEpochs:
+            return fns
 
     def evaluate(self, data):
         xs, ys = map(list, zip(* data))
@@ -151,15 +163,17 @@ class NN(Solver):
 
 class NNF(ParallelForest):
     def __init__(self, nbInputs, nbFeatures, nbIter=-1, nbJobs=8, sess=None,
-            pref=""):
+            use_relu=False, pref="", debug=False):
         super().__init__(nbIter, nbJobs, "neural-net-" + pref)
         self.nbInputs = nbInputs
         self.layers   = [(nbFeatures, 100), (nbFeatures, 1)]
+        self.use_relu = use_relu
         self.sess     = sess
+        self.debug    = debug
 
     def createSolver(self, id):
         return NN(id, self.run, self.nbInputs, self.layers, sess=self.sess,
-                pref=self.pref)
+                use_relu=self.use_relu, pref=self.pref, debug=self.debug)
 
 
 
