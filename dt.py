@@ -2,6 +2,7 @@ from forest import Forest
 from math import sqrt
 from sklearn.tree import DecisionTreeRegressor
 from solver import Solver
+import numpy as np
 import random
 import utils
 
@@ -15,14 +16,16 @@ class DT(Solver):
 
     def train(self, data, validation, nbEpochs=100, batchSize=-1):
         X, y = utils.zipData(data)
-        self.tree.fit(X, y)
+        X = np.array(X)
+        self.tree.fit(X.reshape(-1, 1), y)
 
     def evaluate(self, data):
         xs, ys = utils.zipData(data)
         return utils.evaluate(self.tree.predict(xs), ys)
 
     def solve(self, x):
-        return self.tree.predict(x)
+        x = np.array(x)
+        return self.tree.predict(x.reshape(-1, 1))
 
     def makeTree(self):
         father = [-1] * self.tree.tree_.node_count
