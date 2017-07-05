@@ -17,15 +17,16 @@ class DT(Solver):
     def train(self, data, validation, nbEpochs=100, batchSize=-1):
         X, y = utils.zipData(data)
         X = np.array(X)
-        self.tree.fit(X.reshape(-1, 1), y)
+        self.tree.fit(X, y)
 
     def evaluate(self, data):
         xs, ys = utils.zipData(data)
+        xs = np.array(xs)
         return utils.evaluate(self.tree.predict(xs), ys)
 
     def solve(self, x):
         x = np.array(x)
-        return self.tree.predict(x.reshape(-1, 1))
+        return self.tree.predict(x)
 
     def makeTree(self):
         father = [-1] * self.tree.tree_.node_count
