@@ -15,9 +15,19 @@ class Forest(object):
         self.run    = utils.custom_iso()
         self.iters  = [None for _ in range(self.nbIter)]
 
-    def train(self, data, validation, nbEpochs=100, batchSize=32):
-        for it in self.iters:
-            it.train(data, validation, nbEpochs, batchSize)
+    def train(self, data, validation, nbEpochs=100, batchSize=32,
+            logEpochs=False):
+        r = [it.train(data, validation, nbEpochs, logEpochs=logEpochs)
+                for it in self.iters]
+        if logEpochs:
+            fns = [[0 for _ in range(len(r[0][0]))] for _ in range(len(r[0]))]
+
+            for f in r:
+                for t in range(len(f)):
+                    for x in range(len(f[t])):
+                        fns[t][x] += f[t][x] / len(r)
+
+            return fns
 
     def evaluate(self, data):
         z = []
@@ -45,17 +55,8 @@ class ParallelForest(Forest):
         #    delayed(self.iters[i].train)(data, validation, nbEpochs, logEpochs)
         #        for i in range(self.nbIter)
         #)
-        r = [self.iters[i].train(data, validation, nbEpochs, logEpochs=logEpochs)
-                for i in range(self.nbIter)]
-        if logEpochs:
-            fns = [[0 for _ in range(len(r[0][0]))] for _ in range(len(r[0]))]
-
-            for f in r:
-                for t in range(len(f)):
-                    for x in range(len(f[t])):
-                        fns[t][x] += f[t][x] / len(r)
-
-            return fns
+        return super().train(data, validation, nbEpochs=nbEpochs,
+                logEpochs=logEpochs)
 
     @abstractmethod
     def createSolver(self, id):
