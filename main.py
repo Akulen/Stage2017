@@ -1,7 +1,7 @@
 from dt               import RF
 from joblib           import Parallel, delayed
 from math             import sqrt
-from nn               import NNF
+from nn               import NNF1, NNF2
 from rnf              import RNF1, RNF2
 from sklearn.ensemble import RandomForestRegressor
 from tensorflow       import Session
@@ -19,7 +19,7 @@ def evaluateSolver(solver, data):
 
     solver.train(trainData, validationData)
     eval = solver.evaluate(testData)
-    #solver.close()
+    solver.close()
     return eval
 
 datafiles = [("autoMPG",     7  ),
@@ -29,24 +29,24 @@ datafiles = [("autoMPG",     7  ),
              ("wisconsin",   32 ),
              ("concrete",    8  )]
 
-solvers = [lambda id, n, sess : NNF(n, nbNeurones, nbIter, sess=sess, pref=str(id)),
+solvers = [lambda id, n, sess : NNF2(n, nbNeurones, nbIter, sess=sess,
+                pref=str(id)),
            lambda id, n, sess : RF(n, nbNeurones, nbIter, pref=str(id)),
            lambda id, n, sess : RNF1(n, maxProf, nbNeurones, nbIter, sess=sess,
                 pref=str(id)),
            lambda id, n, sess : RNF2(n, maxProf, nbNeurones, nbIter, sess=sess,
                 pref=str(id)),
-           lambda id, n, sess : RNF1(n, maxProf, nbNeurones, nbIter, sparse=False,
-                sess=sess, pref=str(id)),
-           lambda id, n, sess : RNF2(n, maxProf, nbNeurones, nbIter, sparse=False,
-                sess=sess, pref=str(id))]
+           lambda id, n, sess : RNF1(n, maxProf, nbNeurones, nbIter,
+                sparse=False, sess=sess, pref=str(id)),
+           lambda id, n, sess : RNF2(n, maxProf, nbNeurones, nbIter,
+                sparse=False, sess=sess, pref=str(id))]
 assert len(sys.argv) > 1
 iSolver = int(sys.argv[1])
 assert iSolver < len(solvers)
 
 maxProf    = 6
 nbNeurones = 2**maxProf
-nbIter     = 3
-#sess       = Session()
+nbIter     = 10
 
 def createSolver(id, nbInputs, sess):
     solver = solvers[iSolver](id, nbInputs, sess)
@@ -63,8 +63,8 @@ if __name__ == '__main__':
     for i, (filename, nbInputs) in enumerate(datafiles):
         print("## " + filename)
 
-        rmse = Parallel(n_jobs=8)(
-            delayed(thread)(j, filename, nbInputs) for j in range(3)
+        rmse = Parallel(n_jobs=1)(
+            delayed(thread)(j, filename, nbInputs) for j in range(30)
         )
 
         print("%5.2f (" % (sum(rmse) / len(rmse)), end='')
