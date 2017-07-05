@@ -18,7 +18,9 @@ def evaluateSolver(solver, data):
     testData       = data[3*n//4:]
 
     solver.train(trainData, validationData)
-    return solver.evaluate(testData)
+    eval = solver.evaluate(testData)
+    #solver.close()
+    return eval
 
 datafiles = [("autoMPG",     7  ),
              ("housing",     13 ),
@@ -27,15 +29,15 @@ datafiles = [("autoMPG",     7  ),
              ("wisconsin",   32 ),
              ("concrete",    8  )]
 
-solvers = [lambda id, n : NNF(n, nbNeurones, nbIter, sess=sess, pref=str(id)),
-           lambda id, n : RF(n, nbNeurones, nbIter, pref=str(id)),
-           lambda id, n : RNF1(n, maxProf, nbNeurones, nbIter, sess=sess,
+solvers = [lambda id, n, sess : NNF(n, nbNeurones, nbIter, sess=sess, pref=str(id)),
+           lambda id, n, sess : RF(n, nbNeurones, nbIter, pref=str(id)),
+           lambda id, n, sess : RNF1(n, maxProf, nbNeurones, nbIter, sess=sess,
                 pref=str(id)),
-           lambda id, n : RNF2(n, maxProf, nbNeurones, nbIter, sess=sess,
+           lambda id, n, sess : RNF2(n, maxProf, nbNeurones, nbIter, sess=sess,
                 pref=str(id)),
-           lambda id, n : RNF1(n, maxProf, nbNeurones, nbIter, sparse=False,
+           lambda id, n, sess : RNF1(n, maxProf, nbNeurones, nbIter, sparse=False,
                 sess=sess, pref=str(id)),
-           lambda id, n : RNF2(n, maxProf, nbNeurones, nbIter, sparse=False,
+           lambda id, n, sess : RNF2(n, maxProf, nbNeurones, nbIter, sparse=False,
                 sess=sess, pref=str(id))]
 assert len(sys.argv) > 1
 iSolver = int(sys.argv[1])
@@ -44,15 +46,18 @@ assert iSolver < len(solvers)
 maxProf    = 6
 nbNeurones = 2**maxProf
 nbIter     = 3
-sess       = None # Session()
+#sess       = Session()
 
-def createSolver(id, nbInputs):
-    solver = solvers[iSolver](id, nbInputs)
+def createSolver(id, nbInputs, sess):
+    solver = solvers[iSolver](id, nbInputs, sess)
     return solver
 
 def thread(id, filename, nbInputs):
-    solver = createSolver(id, nbInputs)
-    return evaluateSolver(solver, getData(filename, nbInputs, 1))
+    sess = Session()
+    solver = createSolver(id, nbInputs, sess)
+    res = evaluateSolver(solver, getData(filename, nbInputs, 1))
+    solver.close()
+    return res
 
 if __name__ == '__main__':
     for i, (filename, nbInputs) in enumerate(datafiles):
