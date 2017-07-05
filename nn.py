@@ -161,15 +161,22 @@ class NN(Solver):
     def solve(self, x):
         return self.sess.run(self.output, feed_dict={self.x: x})
 
+    def close(self):
+        super().close()
+        self.sess.close()
+
+
+
 class NNF(ParallelForest):
     def __init__(self, nbInputs, nbFeatures, nbIter=-1, nbJobs=8, sess=None,
             use_relu=False, pref="", debug=False):
-        super().__init__(nbIter, nbJobs, "neural-net-" + pref)
         self.nbInputs = nbInputs
         self.layers   = [(nbFeatures, 100), (nbFeatures, 1)]
         self.use_relu = use_relu
         self.sess     = sess
         self.debug    = debug
+
+        super().__init__(nbIter, nbJobs, "neural-net-" + pref)
 
     def createSolver(self, id):
         return NN(id, self.run, self.nbInputs, self.layers, sess=self.sess,
