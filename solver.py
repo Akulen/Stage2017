@@ -20,3 +20,6 @@ class Solver(object):
     @abstractmethod
     def solve(self, x):
         pass
+
+    def close(self):
+        pass
