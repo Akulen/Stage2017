@@ -13,14 +13,15 @@ import utils
 class RNF1(ParallelForest):
     def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True,
             use_et=False, sess=None, pref=""):
-        pp = "sparse-" if sparse else ""
-        super().__init__(nbIter, pref=pp + "random-neural-" + pref)
         self.nbInputs   = nbInputs
         self.maxProf    = maxProf
         self.nbFeatures = nbFeatures
         self.sparse     = sparse
         self.sess       = sess
         self.use_et     = use_et
+
+        pp = "sparse-" if sparse else ""
+        super().__init__(nbIter, pref=pp + "random-neural-" + pref)
 
     def createSolver(self, id):
         return RNF2(self.nbInputs, self.maxProf, self.nbFeatures, 1,
@@ -31,8 +32,6 @@ class RNF1(ParallelForest):
 class RNF2(Forest):
     def __init__(self, nbInputs, maxProf, nbFeatures, nbIter=-1, sparse=True,
             id=0, use_et=False, use_relu=False, sess=None, pref=""):
-        pp = "sparse-" if sparse else ""
-        super().__init__(nbIter, pref=pp + "random-neural-" + pref)
         self.id         = id
         self.nbInputs   = nbInputs
         self.maxProf    = maxProf
@@ -46,11 +45,15 @@ class RNF2(Forest):
             (nbFeatures,   1  )
         ]
 
+        pp = "sparse-" if sparse else ""
+        super().__init__(nbIter, pref=pp + "random-neural-" + pref)
+
         self.dt = [DT(i, self.run, self.nbInputs, (self.nbInputs+2)//3, self.maxProf)
                 for i in range(self.nbIter)]
         self.et = ExtraTreesRegressor(n_estimators=self.nbIter, max_depth=self.maxProf)
+        self.iters = [None]
 
-    def train(self, data, validation, nbEpochs=100):
+    def train(self, data, validation, nbEpochs=100, logEpochs=False):
         if not self.use_et:
             for i in range(self.nbIter):
                 batch = utils.selectBatch(data, len(data)//3, replace=False, unzip=False)
@@ -81,17 +84,17 @@ class RNF2(Forest):
                 for j in range(len(connectivity[i])):
                     connectivity[i][j] = np.ones(connectivity[i][j].shape)
 
-        self.nn = NN(self.id, self.run, self.nbInputs, self.layers,
+        self.iters[0] = NN(self.id, self.run, self.nbInputs, self.layers,
                 connectivity=connectivity, weight=weight, bias=bias,
                 sess=self.sess, pref=self.pref, use_relu=self.use_relu)
 
-        return self.nn.train(data, validation, nbEpochs)
+        return self.iters[0].train(data, validation, nbEpochs, logEpochs=logEpochs)
 
     def evaluate(self, data):
-        return self.nn.evaluate(data)
+        return self.iters[0].evaluate(data)
 
     def solve(self, x):
-        return self.nn.solve(x)
+        return self.iters[0].solve(x)
 
 
 
