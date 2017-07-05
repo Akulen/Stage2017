@@ -42,7 +42,7 @@ class RNF2(Forest):
         self.sess       = sess
         self.layers     = [
             (nbFeatures-1, 100),
-            (nbFeatures,   1  )
+            (nbFeatures,     1)
         ]
 
         pp = "sparse-" if sparse else ""
