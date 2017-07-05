@@ -26,6 +26,10 @@ class Forest(object):
             z.append(sum(res) / self.nbIter)
         return utils.evaluate(z, [y[0] for _, y in data])
 
+    def close(self):
+        for it in self.iters:
+            it.close()
+
 class ParallelForest(Forest):
     __metaclass__ = ABCMeta
 
@@ -33,24 +37,29 @@ class ParallelForest(Forest):
         super().__init__(nbIter, "parallel-" + pref)
         self.nbJobs     = nbJobs
 
-    def train(self, data, validation, nbEpochs=100):
-        self.data       = data
-        self.validation = validation
-        self.nbEpochs   = nbEpochs
+        for i in range(self.nbIter):
+            self.iters[i] = self.createSolver(self.pref + str(i))
+
+    def train(self, data, validation, nbEpochs=100, logEpochs=False):
+        #r = Parallel(n_jobs=self.nbJobs)(
+        #    delayed(self.iters[i].train)(data, validation, nbEpochs, logEpochs)
+        #        for i in range(self.nbIter)
+        #)
+        r = [self.iters[i].train(data, validation, nbEpochs, logEpochs=logEpochs)
+                for i in range(self.nbIter)]
+        if logEpochs:
+            fns = [[0 for _ in range(len(r[0][0]))] for _ in range(len(r[0]))]
+
+            for f in r:
+                for t in range(len(f)):
+                    for x in range(len(f[t])):
+                        fns[t][x] += f[t][x] / len(r)
+
+            return fns
 
     @abstractmethod
     def createSolver(self, id):
         pass
-
-    def thread(self, id, data):
-        solver = self.createSolver(self.pref + str(id))
-        solver.train(self.data, self.validation, self.nbEpochs)
-
-        z = [None] * len(data)
-        for j in range(len(data)):
-            x = data[j]
-            z[j] = solver.solve([x])[0][0]
-        return z
 
     def evaluate(self, data):
         x = [_x for _x, _ in data]
@@ -59,14 +68,13 @@ class ParallelForest(Forest):
 
     def solve(self, data):
         z = [0] * len(data)
-        res = Parallel(n_jobs=self.nbJobs)(
-            delayed(self.thread)(i, data) for i in range(self.nbIter)
-        )
-
         for j in range(len(data)):
-            for i in range(self.nbIter):
-                z[j] += res[i][j]
-            z[j] = z[j] / self.nbIter
+            x = data[j]
+            #r = Parallel(n_jobs=self.nbJobs)(
+            #    delayed(self.iters[i].solve)([x]) for i in range(self.nbIter)
+            #)
+            r = [self.iters[i].solve([x]) for i in range(self.nbIter)]
+            z[j] = sum([_r[0][0] for _r in r]) / self.nbIter
         return z
 
 
