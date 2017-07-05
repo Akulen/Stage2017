@@ -1,4 +1,4 @@
-from forest import ParallelForest
+from forest import Forest, ParallelForest
 from joblib import Parallel, delayed
 from math   import sqrt
 from solver import Solver
@@ -90,7 +90,11 @@ class NN(Solver):
             connectivity = [None] * len(layers)
         for i in range(len(connectivity)):
             if connectivity[i] is None:
-                connectivity[i] = [np.ones((self.dimensions[i], self.dimensions[i+1]))]
+                connectivity[i] = [None]
+            for j in range(len(connectivity[i])):
+                if connectivity[i][j] is None:
+                    connectivity[i][j] = np.ones((self.dimensions[i],
+                        self.dimensions[i+1]))
         return connectivity
 
     def initWeight(self, layers, weight):
@@ -98,12 +102,14 @@ class NN(Solver):
             weight = [None] * (len(layers) + 1)
         for i in range(len(weight)):
             if weight[i] is None:
-                weight[i] = [tf.truncated_normal(self.dimensions[i:i+2], dtype=tf.float32,
-                        seed=random.randint(-10**5, 10**5))]
+                weight[i] = [None]
                 #init_W = tf.random_uniform(dimensions[i:i+2], -r, r,
                 #        seed=random.randint(0, 10**9))
-            else:
-                for j in range(len(weight[i])):
+            for j in range(len(weight[i])):
+                if weight[i][j] is None:
+                    weight[i][j] = tf.truncated_normal(self.dimensions[i:i+2],
+                            dtype=tf.float32, seed=random.randint(-10**5, 10**5))
+                else:
                     weight[i][j] = tf.constant(weight[i][j], dtype=tf.float32)
         return weight
 
@@ -112,12 +118,14 @@ class NN(Solver):
             bias = [None] * (len(layers) + 1)
         for i in range(len(bias)):
             if bias[i] is None:
-                bias[i] = [tf.truncated_normal([self.dimensions[i+1]], dtype=tf.float32,
-                        seed=random.randint(-10**5, 10**5))]
+                bias[i] = [None]
                 #init_b = tf.random_uniform([dimensions[i+1]], -r, r,
                 #        seed=random.randint(0, 10**9))
-            else:
-                for j in range(len(bias[i])):
+            for j in range(len(bias[i])):
+                if bias[i][j] is None:
+                    bias[i][j] = tf.truncated_normal([self.dimensions[i+1]],
+                            dtype=tf.float32, seed=random.randint(-10**5, 10**5))
+                else:
                     bias[i][j] = tf.constant(bias[i][j], dtype=tf.float32)
         return bias
 
@@ -136,7 +144,7 @@ class NN(Solver):
                 summary, closs = self.evaluate(validation)
                 self.train_writer.add_summary(summary, i)
                 if i % 10 == 9:
-                    print("Epoch #" + str(i) + ": " + str(closs))
+                    print("%s: Epoch #%02d -> %9.4f" % (self.id, i, closs))
             else:
                 closs = self.evaluate(validation)
             if closs < loss:
@@ -167,11 +175,11 @@ class NN(Solver):
 
 
 
-class NNF(ParallelForest):
+class NNF1(ParallelForest):
     def __init__(self, nbInputs, nbFeatures, nbIter=-1, nbJobs=8, sess=None,
             use_relu=False, pref="", debug=False):
         self.nbInputs = nbInputs
-        self.layers   = [(nbFeatures, 100), (nbFeatures, 1)]
+        self.layers   = [(nbFeatures-1, 100), (nbFeatures, 1)]
         self.use_relu = use_relu
         self.sess     = sess
         self.debug    = debug
@@ -181,6 +189,35 @@ class NNF(ParallelForest):
     def createSolver(self, id):
         return NN(id, self.run, self.nbInputs, self.layers, sess=self.sess,
                 use_relu=self.use_relu, pref=self.pref, debug=self.debug)
+
+
+
+class NNF2(Forest):
+    def __init__(self, nbInputs, nbFeatures, nbIter=-1, sess=None,
+            use_relu=False, pref="", debug=False):
+        self.nbInputs = nbInputs
+        self.layers   = [(nbFeatures-1, 100), (nbFeatures, 1)]
+        self.use_relu = use_relu
+        self.sess     = sess
+        self.debug    = debug
+
+        super().__init__(nbIter, "neural-net-" + pref)
+
+        connectivity = [[None] * self.nbIter for _ in range(2)]
+        weight       = [[None] * self.nbIter for _ in range(3)]
+        bias         = [[None] * self.nbIter for _ in range(3)]
+
+        self.nbIter  = 1
+
+        self.iters   = [NN(self.pref, self.run, self.nbInputs, self.layers,
+            connectivity=connectivity, weight=weight, bias=bias, sess=self.sess,
+            pref=self.pref, use_relu=self.use_relu, debug=self.debug)]
+
+    def evaluate2(self, data):
+        return self.iters[0].evaluate(data)
+
+    def solve(self, x):
+        return self.iters[0].solve(x)
 
 
 
