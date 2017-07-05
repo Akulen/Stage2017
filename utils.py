@@ -56,7 +56,7 @@ def dt2nn(dt, a, b, c, n):
 
 def evaluate(z, y):
     z, y = np.array(z), np.array(y)
-    return rmse(y, z)
+    return rmse(y.flatten(), z.flatten())
 
 def getData(filename, nbX, nbY):
     data = []
