@@ -3,6 +3,7 @@ from joblib import Parallel, delayed
 from math   import sqrt
 from solver import Solver
 import numpy as np
+import os
 import random
 import tensorflow as tf
 import utils
@@ -13,10 +14,9 @@ def randomRange(fan_in, fan_out):
 
 class NN(Solver):
     def __init__(self, id, run, nbInputs, layers, connectivity=None,
-            weight=None, bias=None, sess=None, pref="", debug=False,
-            use_relu=False):
+            weight=None, bias=None, useRelu=False, fixMiddle=False, sess=None,
+            debug=False):
         super().__init__(id, run, nbInputs)
-        self.pref      = pref
         self.layers    = layers
         self.summaries = []
         self.layers    = []
@@ -43,7 +43,10 @@ class NN(Solver):
             ny = [None] * len(bias[i])
             for j in range(len(bias[i])):
                 b = tf.Variable(initial_value=bias[i][j])
-                W = tf.Variable(initial_value=weight[i][j])
+                if j == 1 and fixMiddle:
+                    W = weight[i][j]
+                else:
+                    W = tf.Variable(initial_value=weight[i][j])
 
                 if i < len(layers) - 1:
                     C = tf.constant(connectivity[i][j], dtype=tf.float32)
@@ -55,7 +58,7 @@ class NN(Solver):
                 ny[j] = tf.sparse_matmul(y[y_id], W, b_is_sparse=True) + b
 
                 if i < len(layers):
-                    fAct = tf.nn.relu if use_relu else tf.tanh
+                    fAct = tf.nn.relu if useRelu else tf.tanh
                     ny[j] = fAct(gamma[i] * ny[j])
 
                 layer.append((W, b, ny[j]))
@@ -78,7 +81,7 @@ class NN(Solver):
         self.sess = tf.Session() if sess is None else sess
 
         if self.debug:
-            self.summaries.append(tf.summary.scalar("vloss/" + str(self.id), self.vloss))
+            self.summaries.append(tf.summary.scalar("vloss/" + self.id, self.vloss))
         self.summary = tf.summary.merge_all()
         if self.debug:
             self.train_writer = tf.summary.FileWriter('./train/'+self.run, self.sess.graph)
@@ -134,7 +137,9 @@ class NN(Solver):
         saver = tf.train.Saver()
         if logEpochs:
             testData = [[x] for x in np.linspace(0, 1, 10**3)]
-            fns = [None] * nbEpochs
+            fns = [None] * (nbEpochs + 1)
+            y = self.solve(testData)
+            fns[0] = [_y[0] for _y in y]
         for i in range(nbEpochs):
             for j in range(len(data) // batchSize + 1):
                 batch_xs, batch_ys = utils.selectBatch(data, batchSize)
@@ -149,13 +154,16 @@ class NN(Solver):
                 closs = self.evaluate(validation)
             if closs < loss:
                 loss = closs
-                saver.save(self.sess, "/tmp/sess" + self.pref + "-" + str(self.id) + ".ckpt")
+                saver.save(self.sess, "/tmp/sess" + self.id + ".ckpt")
                 if logEpochs:
                     y = self.solve(testData)
-                    fns[i] = [_y[0] for _y in y]
+                    fns[i+1] = [_y[0] for _y in y]
             elif logEpochs:
-                fns[i] = fns[i-1][:]
-        saver.restore(self.sess, "/tmp/sess" + self.pref + "-" + str(self.id) + ".ckpt")
+                fns[i+1] = fns[i-1][:]
+        saver.restore(self.sess, "/tmp/sess" + self.id + ".ckpt")
+        os.remove("/tmp/sess" + self.id + ".ckpt.meta")
+        os.remove("/tmp/sess" + self.id + ".ckpt.index")
+        os.remove("/tmp/sess" + self.id + ".ckpt.data-00000-of-00001")
         if logEpochs:
             return fns
 
@@ -170,50 +178,59 @@ class NN(Solver):
         return self.sess.run(self.output, feed_dict={self.x: x})
 
     def close(self):
-        super().close()
         self.sess.close()
+        super().close()
 
 
 
 class NNF1(ParallelForest):
-    def __init__(self, nbInputs, nbFeatures, nbIter=-1, nbJobs=8, sess=None,
-            use_relu=False, pref="", debug=False):
-        self.nbInputs = nbInputs
-        self.layers   = [(nbFeatures-1, 100), (nbFeatures, 1)]
-        self.use_relu = use_relu
-        self.sess     = sess
-        self.debug    = debug
+    def __init__(self, nbInputs, layerSize, useRelu=False, fixMiddle=False,
+            sess=None, debug=False, nbJobs=8, nbIter=-1, pref=""):
+        super().__init__(nbIter=nbIter, nbJobs=nbJobs, pref=pref)
+        self.pref = "neural-net-" + self.pref
 
-        super().__init__(nbIter, nbJobs, "neural-net-" + pref)
+        self.nbInputs  = nbInputs
+        self.layers    = [(layerSize-1, 100), (layerSize, 1)]
+        self.useRelu   = useRelu
+        self.fixMiddle = fixMiddle
+        self.sess      = sess
+        self.debug     = debug
+
+        self.initSolvers()
 
     def createSolver(self, id):
-        return NN(id, self.run, self.nbInputs, self.layers, sess=self.sess,
-                use_relu=self.use_relu, pref=self.pref, debug=self.debug)
+        return NN(self.pref + "-" + str(id), self.run, self.nbInputs,
+                self.layers, useRelu=self.useRelu, fixMiddle=self.fixMiddle,
+                sess=self.sess, debug=self.debug)
 
 
 
 class NNF2(Forest):
-    def __init__(self, nbInputs, nbFeatures, nbIter=-1, sess=None,
-            use_relu=False, pref="", debug=False):
-        self.nbInputs = nbInputs
-        self.layers   = [(nbFeatures-1, 100), (nbFeatures, 1)]
-        self.use_relu = use_relu
-        self.sess     = sess
-        self.debug    = debug
+    def __init__(self, nbInputs, layerSize, useRelu=False, fixMiddle=False,
+            sess=None, debug=False, nbIter=-1, pref=""):
+        super().__init__(nbIter=1, pref=pref)
+        self.pref = "neural-nel-" + self.pref
 
-        super().__init__(nbIter, "neural-net-" + pref)
+        self.nbInputs  = nbInputs
+        self.layers    = [(layerSize-1, 100), (layerSize, 1)]
+        self.useRelu   = useRelu
+        self.fixMiddle = fixMiddle
+        self.sess      = sess
+        self.debug     = debug
 
-        connectivity = [[None] * self.nbIter for _ in range(2)]
-        weight       = [[None] * self.nbIter for _ in range(3)]
-        bias         = [[None] * self.nbIter for _ in range(3)]
+        self.connectivity = [[None] * nbIter for _ in range(2)]
+        self.weight       = [[None] * nbIter for _ in range(3)]
+        self.bias         = [[None] * nbIter for _ in range(3)]
 
-        self.nbIter  = 1
+        self.initSolvers()
 
-        self.iters   = [NN(self.pref, self.run, self.nbInputs, self.layers,
-            connectivity=connectivity, weight=weight, bias=bias, sess=self.sess,
-            pref=self.pref, use_relu=self.use_relu, debug=self.debug)]
+    def createSolver(self, id):
+        return NN(self.pref + "-" + str(id), self.run, self.nbInputs,
+                self.layers, connectivity=self.connectivity, weight=self.weight,
+                bias=self.bias, useRelu=self.useRelu, fixMiddle=self.fixMiddle,
+                sess=self.sess, debug=self.debug)
 
-    def evaluate2(self, data):
+    def evaluate(self, data):
         return self.iters[0].evaluate(data)
 
     def solve(self, x):
