@@ -10,7 +10,7 @@ class Solver(object):
         self.nbInputs = nbInputs
 
     @abstractmethod
-    def train(self, data, validationData, nbEpochs=100, batchSize=32):
+    def train(self, data, validationData, nbEpochs=100):
         pass
     
     @abstractmethod
