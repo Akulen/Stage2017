@@ -29,33 +29,33 @@ datafiles = [("autoMPG",     7  ),
              ("wisconsin",   32 ),
              ("concrete",    8  )]
 
-solvers = [lambda id, n, sess : NNF2(n, nbNeurones, nbIter, sess=sess,
+solvers = [lambda id, n, sess : NNF2(n, nbNeurones, sess=sess, nbIter=nbIter,
                 pref=str(id)),
-           lambda id, n, sess : RF(n, nbNeurones, nbIter, pref=str(id)),
-           lambda id, n, sess : RNF1(n, maxProf, nbNeurones, nbIter, sess=sess,
-                pref=str(id)),
-           lambda id, n, sess : RNF2(n, maxProf, nbNeurones, nbIter, sess=sess,
-                pref=str(id)),
-           lambda id, n, sess : RNF1(n, maxProf, nbNeurones, nbIter,
-                sparse=False, sess=sess, pref=str(id)),
-           lambda id, n, sess : RNF2(n, maxProf, nbNeurones, nbIter,
-                sparse=False, sess=sess, pref=str(id))]
+           lambda id, n, sess : RF(n, nbNeurones, nbIter=nbIter, pref=str(id)),
+           lambda id, n, sess : RNF1(n, maxProf, nbNeurones, sess=sess,
+                nbIter=nbIter, pref=str(id)),
+           lambda id, n, sess : RNF2(n, maxProf, nbNeurones, sess=sess,
+                nbIter=nbIter, pref=str(id)),
+           lambda id, n, sess : RNF1(n, maxProf, nbNeurones, sess=sess,
+                sparse=False, nbIter=nbIter, pref=str(id)),
+           lambda id, n, sess : RNF2(n, maxProf, nbNeurones, sess=sess,
+                sparse=False, nbIter=nbIter, pref=str(id))]
 assert len(sys.argv) > 1
 iSolver = int(sys.argv[1])
 assert iSolver < len(solvers)
 
 maxProf    = 6
 nbNeurones = 2**maxProf
-nbIter     = 10
+nbIter     = 3
 
 def createSolver(id, nbInputs, sess):
     solver = solvers[iSolver](id, nbInputs, sess)
     return solver
 
 def thread(id, filename, nbInputs):
-    sess = Session()
+    sess   = Session()
     solver = createSolver(id, nbInputs, sess)
-    res = evaluateSolver(solver, getData(filename, nbInputs, 1))
+    res    = evaluateSolver(solver, getData(filename, nbInputs, 1))
     solver.close()
     return res
 
@@ -64,7 +64,7 @@ if __name__ == '__main__':
         print("## " + filename)
 
         rmse = Parallel(n_jobs=1)(
-            delayed(thread)(j, filename, nbInputs) for j in range(30)
+            delayed(thread)(j, filename, nbInputs) for j in range(3)
         )
 
         print("%5.2f (" % (sum(rmse) / len(rmse)), end='')
