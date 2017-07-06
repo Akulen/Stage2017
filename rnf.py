@@ -62,10 +62,9 @@ class RNF2(Forest):
             self.et = DT(self.sess, self.run, self.nbInputs, self.maxProf,
                     self.maxFeatures, nbIter=self.nbIter,
                     treeType=ExtraTreesRegressor)
-        else:
-            self.initSolvers()
-            self.rf = self.iters[:]
 
+        self.initSolvers()
+        self.rf = self.iters[:]
         self.iters = [None]
 
     def createSolver(self, id):
@@ -87,9 +86,11 @@ class RNF2(Forest):
 
         for i in range(self.nbIter):
             if self.useEt:
-                self.rf[i].tree = self.et.tree.estimators_[i]
-            c, w, b = utils.dt2nn(self.rf[i], self.nbInputs, self.layers[0][0],
-                    self.layers[1][0], self.nbIter)
+                tree = self.et.tree.estimators_[i] 
+            else:
+                tree = self.rf[i].tree.estimators_[0]
+            c, w, b = utils.dt2nn(self.rf[i], tree.tree_, self.nbInputs,
+                    self.layers[0][0], self.layers[1][0], self.nbIter)
 
             for j in range(3):
                 if j < 2:

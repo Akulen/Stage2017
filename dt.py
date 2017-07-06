@@ -28,34 +28,6 @@ class DT(Solver):
     def solve(self, x):
         return self.tree.predict(x)
 
-    def makeTree(self, id=0):
-        tree   = self.tree.estimators_[id].tree_
-        father = [-1] * tree.node_count
-        side   = [0] * tree.node_count
-        for i in range(tree.node_count):
-            if tree.children_left[i] >= 0:
-                father[tree.children_left[i]]  = i
-                father[tree.children_right[i]] = i
-                side[tree.children_left[i]]    = -1.
-                side[tree.children_right[i]]   = 1.
-        return father, side
-
-    def indexNodes(self, id=0):
-        tree  = self.tree.estimators_[id].tree_
-        nodes = []
-        for i in range(tree.node_count):
-            if tree.children_left[i] >= 0:
-                nodes.append(i)
-        return nodes
-
-    def indexLeafs(self, id=0):
-        tree = self.tree.estimators_[id].tree_
-        leafs = []
-        for i in range(tree.node_count):
-            if tree.children_left[i] < 0:
-                leafs.append(i)
-        return leafs
-
 class RF(Forest):
     def __init__(self, nbInputs, maxProf, nbIter=-1, pref=""):
         super().__init__(nbIter, pref)

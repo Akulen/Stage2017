@@ -7,7 +7,7 @@ import re
 def custom_iso(clean=''):
     return re.sub('[\.].*', clean, datetime.datetime.now().isoformat())
 
-def dt2nn(dt, a, b, c, n):
+def dt2nn(dt, tree, a, b, c, n):
     connectivity = [
         np.zeros((a, b)),
         np.zeros((b, c))
@@ -23,10 +23,9 @@ def dt2nn(dt, a, b, c, n):
         np.zeros(1)
     ]
 
-    tree         = dt.tree.tree_
     nbNodes      = tree.node_count
-    father, side = dt.makeTree()
-    nodes, leafs = dt.indexNodes(), dt.indexLeafs()
+    father, side = makeTree(tree)
+    nodes, leafs = indexNodes(tree), indexLeafs(tree)
     nodeMap      = revIndex(nodes)
 
     for j, node in enumerate(nodes):
@@ -64,6 +63,31 @@ def getData(filename, nbX, nbY):
         raw = list(map(float, line.split()))
         data.append((raw[nbY:nbY+nbX], raw[0:nbY]))
     return data
+
+def indexNodes(tree):
+    nodes = []
+    for i in range(tree.node_count):
+        if tree.children_left[i] >= 0:
+            nodes.append(i)
+    return nodes
+
+def indexLeafs(tree):
+    leafs = []
+    for i in range(tree.node_count):
+        if tree.children_left[i] < 0:
+            leafs.append(i)
+    return leafs
+
+def makeTree(tree):
+    father = [-1] * tree.node_count
+    side   = [0] * tree.node_count
+    for i in range(tree.node_count):
+        if tree.children_left[i] >= 0:
+            father[tree.children_left[i]]  = i
+            father[tree.children_right[i]] = i
+            side[tree.children_left[i]]    = -1.
+            side[tree.children_right[i]]   = 1.
+    return father, side
 
 def revIndex(index):
     mp = {}
