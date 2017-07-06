@@ -82,9 +82,9 @@ class RF(Forest):
             return fn
 
     def solve(self, x):
-        if isinstance(x, list):
+        if isinstance(x[0], list):
             return [self.solve(_x) for _x in x]
-        res = [it.solve(x)[0] for it in self.iters]
+        res = [it.solve([x])[0] for it in self.iters]
         z = sum(res) / self.nbIter
         return z
 
