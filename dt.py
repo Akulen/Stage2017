@@ -59,14 +59,16 @@ class DT(Solver):
 class RF(Forest):
     def __init__(self, nbInputs, maxProf, nbIter=-1, pref=""):
         super().__init__(nbIter, pref)
-        self.pref     = "random-" + self.pref
-        self.nbInputs = nbInputs
-        self.maxProf  = maxProf
+        self.pref = "random-" + self.pref
 
-        maxFeatures   = (nbInputs + 2) // 3
-        for i in range(self.nbIter):
-            self.iters[i] = DT(i, self.run, self.nbInputs, self.maxProf,
-                    maxFeatures)
+        self.nbInputs    = nbInputs
+        self.maxProf     = maxProf
+        self.maxFeatures = (nbInputs + 2) // 3
+
+        self.initSolvers()
+
+    def createSolver(self, id):
+        return DT(id, self.run, self.nbInputs, self.maxProf, self.maxFeatures)
 
     def train(self, data, validation, nbEpochs=100, logEpochs=False):
         for it in self.iters:
