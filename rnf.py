@@ -33,7 +33,7 @@ class RNF1(ParallelForest):
         return RNF2(self.nbInputs, self.maxProf, self.layerSize,
                 useRelu=self.useRelu, fixMiddle=self.fixMiddle, sess=self.sess,
                 debug=self.debug, sparse=self.sparse, useEt=self.useEt,
-                nbIter=1, pref=self.pref + "-" + str(id))
+                nbIter=1, pref=id)
 
 
 
