@@ -29,64 +29,65 @@ class NN(Solver):
         weight       = self.initWeight(layers, weight)
         bias         = self.initBias(layers, bias)
 
-        self.x = tf.placeholder(tf.float32, [None, nbInputs], name="Input")
-
-        y = [self.x]
-        ny = []
-
-        for i in range(len(layers)+1):
-            if i < len(layers):
-                assert len(connectivity[i]) == len(weight[i])
-            assert len(bias[i]) == len(weight[i])
-
-            layer = []
-            ny = [None] * len(bias[i])
-            for j in range(len(bias[i])):
-                b = tf.Variable(initial_value=bias[i][j])
-                if j == 1 and fixMiddle:
-                    W = weight[i][j]
-                else:
-                    W = tf.Variable(initial_value=weight[i][j])
-
-                if i < len(layers) - 1:
-                    C = tf.constant(connectivity[i][j], dtype=tf.float32)
-                    W = W * C
-
-                y_id = j
-                if len(y) == 1:
-                    y_id = 0
-                ny[j] = tf.sparse_matmul(y[y_id], W, b_is_sparse=True) + b
-
-                if i < len(layers):
-                    fAct = tf.nn.relu if useRelu else tf.tanh
-                    ny[j] = fAct(gamma[i] * ny[j])
-
-                layer.append((W, b, ny[j]))
-
-            if i == len(layers):
-                ny = [tf.add_n(ny)]
-
-            y = ny
-
-            self.layers.append(layer)
-
-        self.output = y[0]
-        self.y = tf.placeholder(tf.float32, [None, 1])
-
-        self.loss  = tf.losses.mean_squared_error(self.output, self.y)
-        self.vloss = tf.sqrt(tf.losses.mean_squared_error(self.output, self.y))
-
-        self.train_step = tf.train.AdamOptimizer().minimize(self.loss)
-
         self.sess = tf.Session() if sess is None else sess
 
-        if self.debug:
-            self.summaries.append(tf.summary.scalar("vloss/" + self.id, self.vloss))
-        self.summary = tf.summary.merge_all()
-        if self.debug:
-            self.train_writer = tf.summary.FileWriter('./train/'+self.run, self.sess.graph)
+        with tf.name_scope(self.id):
+            self.x = tf.placeholder(tf.float32, [None, nbInputs], name="Input")
 
-        self.sess.run(tf.global_variables_initializer())
+            y = [self.x]
+            ny = []
+
+            for i in range(len(layers)+1):
+                if i < len(layers):
+                    assert len(connectivity[i]) == len(weight[i])
+                assert len(bias[i]) == len(weight[i])
+
+                layer = []
+                ny = [None] * len(bias[i])
+                for j in range(len(bias[i])):
+                    b = tf.Variable(initial_value=bias[i][j])
+                    if j == 1 and fixMiddle:
+                        W = weight[i][j]
+                    else:
+                        W = tf.Variable(initial_value=weight[i][j])
+
+                    if i < len(layers) - 1:
+                        C = tf.constant(connectivity[i][j], dtype=tf.float32)
+                        W = W * C
+
+                    y_id = j
+                    if len(y) == 1:
+                        y_id = 0
+                    ny[j] = tf.sparse_matmul(y[y_id], W, b_is_sparse=True) + b
+
+                    if i < len(layers):
+                        fAct = tf.nn.relu if useRelu else tf.tanh
+                        ny[j] = fAct(gamma[i] * ny[j])
+
+                    layer.append((W, b, ny[j]))
+
+                if i == len(layers):
+                    ny = [tf.add_n(ny)]
+
+                y = ny
+
+                self.layers.append(layer)
+
+            self.output = y[0]
+            self.y = tf.placeholder(tf.float32, [None, 1])
+
+            self.loss  = tf.losses.mean_squared_error(self.output, self.y)
+            self.vloss = tf.sqrt(tf.losses.mean_squared_error(self.output, self.y))
+
+            self.train_step = tf.train.AdamOptimizer().minimize(self.loss)
+
+            if self.debug:
+                self.summaries.append(tf.summary.scalar("vloss/" + self.id, self.vloss))
+            self.summary = tf.summary.merge_all()
+            if self.debug:
+                self.train_writer = tf.summary.FileWriter('./train/'+self.run, self.sess.graph)
+
+        self.sess.run(tf.variables_initializer(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=id)))
 
     def initConnectivity(self, layers, connectivity):
         if connectivity is None:
@@ -134,7 +135,8 @@ class NN(Solver):
 
     def train(self, data, validation, nbEpochs=100, batchSize=32, logEpochs=False):
         loss = float("inf")
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(var_list=(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
+            scope=self.id)), max_to_keep=1)
         if logEpochs:
             testData = [[x] for x in np.linspace(0, 1, 10**3)]
             fns = [None] * (nbEpochs + 1)
@@ -154,16 +156,16 @@ class NN(Solver):
                 closs = self.evaluate(validation)
             if closs < loss:
                 loss = closs
-                saver.save(self.sess, "/tmp/sess" + self.id + ".ckpt")
+                saver.save(self.sess, "/tmp/sess-" + self.id + ".ckpt")
                 if logEpochs:
                     y = self.solve(testData)
                     fns[i+1] = [_y[0] for _y in y]
             elif logEpochs:
-                fns[i+1] = fns[i-1][:]
-        saver.restore(self.sess, "/tmp/sess" + self.id + ".ckpt")
-        os.remove("/tmp/sess" + self.id + ".ckpt.meta")
-        os.remove("/tmp/sess" + self.id + ".ckpt.index")
-        os.remove("/tmp/sess" + self.id + ".ckpt.data-00000-of-00001")
+                fns[i+1] = fns[i]
+        saver.restore(self.sess, "/tmp/sess-" + self.id + ".ckpt")
+        os.remove("/tmp/sess-" + self.id + ".ckpt.meta")
+        os.remove("/tmp/sess-" + self.id + ".ckpt.index")
+        os.remove("/tmp/sess-" + self.id + ".ckpt.data-00000-of-00001")
         if logEpochs:
             return fns
 
@@ -209,7 +211,7 @@ class NNF2(Forest):
     def __init__(self, nbInputs, layerSize, useRelu=False, fixMiddle=False,
             sess=None, debug=False, nbIter=-1, pref=""):
         super().__init__(nbIter=1, pref=pref)
-        self.pref = "neural-nel-" + self.pref
+        self.pref = "neural-net-" + self.pref
 
         self.nbInputs  = nbInputs
         self.layers    = [(layerSize-1, 100), (layerSize, 1)]
