@@ -17,9 +17,14 @@ class DT(Solver):
         self.tree = treeType(n_estimators=nbIter, max_depth=maxProf,
                 max_features=maxFeatures)
 
-    def train(self, data, validation, nbEpochs=100):
+    def train(self, data, validation, nbEpochs=100, logEpochs=False):
         X, y = utils.zipData(data)
         self.tree.fit(X, y)
+
+        if logEpochs:
+            fn = [[self.solve([[x]])
+                for x in np.linspace(0, 1, 10**3)]] * (nbEpochs+1)
+            return fn
 
     def evaluate(self, data):
         xs, ys = utils.zipData(data)
@@ -49,7 +54,7 @@ class RF(Forest):
             it.train(batch, validation, nbEpochs=nbEpochs)
 
         if logEpochs:
-            fn = [[self.solve(x)
+            fn = [[self.solve([x])
                 for x in np.linspace(0, 1, 10**3)]] * (nbEpochs+1)
             return fn
 
