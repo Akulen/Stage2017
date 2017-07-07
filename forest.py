@@ -17,7 +17,7 @@ class Forest(object):
         self.run    = utils.custom_iso()
 
     def initSolvers(self):
-        self.iters  = [self.createSolver(self.pref + str(i))
+        self.iters  = [self.createSolver(self.pref + "-" + str(i))
                 for i in range(self.nbIter)]
 
     @abstractmethod
