@@ -32,6 +32,8 @@ class NN(Solver):
         weight          = self.initWeight(len(layers), weight)
         bias            = self.initBias(len(layers), bias)
 
+        self.vars = []
+
         self.sess = tf.Session() if sess is None else sess
 
         with tf.name_scope(self.id):
@@ -52,10 +54,12 @@ class NN(Solver):
                         b = bias[i][j]
                     else:
                         b = tf.Variable(initial_value=bias[i][j])
+                        self.vars.append([b, None])
                     if fix[i][0]:
                         W = weight[i][j]
                     else:
                         W = tf.Variable(initial_value=weight[i][j])
+                        self.vars.append([W, None])
                     if i == 2 and positiveWeight:
                         W = tf.nn.relu(W)
 
@@ -169,8 +173,8 @@ class NN(Solver):
 
     def train(self, data, validation, nbEpochs=100, batchSize=32, logEpochs=False):
         loss = float("inf")
-        saver = tf.train.Saver(var_list=(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
-            scope=self.id)), max_to_keep=1)
+        #saver = tf.train.Saver(var_list=(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
+        #    scope=self.id)), max_to_keep=1)
         if logEpochs:
             testData = [[x] for x in np.linspace(0, 1, 10**3)]
             fns = [None] * (nbEpochs + 1)
@@ -190,16 +194,20 @@ class NN(Solver):
                 closs = self.evaluate(validation)
             if closs < loss:
                 loss = closs
-                saver.save(self.sess, "/tmp/sess-" + self.id + ".ckpt")
+                for i in range(len(self.vars)):
+                    self.vars[i][1] = self.sess.run(self.vars[i][0])
+                #saver.save(self.sess, "/tmp/sess-" + self.id + ".ckpt")
                 if logEpochs:
                     y = self.solve(testData)
                     fns[i+1] = [_y[0] for _y in y]
             elif logEpochs:
                 fns[i+1] = fns[i]
-        saver.restore(self.sess, "/tmp/sess-" + self.id + ".ckpt")
-        os.remove("/tmp/sess-" + self.id + ".ckpt.meta")
-        os.remove("/tmp/sess-" + self.id + ".ckpt.index")
-        os.remove("/tmp/sess-" + self.id + ".ckpt.data-00000-of-00001")
+        for var, val in self.vars:
+            self.sess.run(var, feed_dict={var: val})
+        #saver.restore(self.sess, "/tmp/sess-" + self.id + ".ckpt")
+        #os.remove("/tmp/sess-" + self.id + ".ckpt.meta")
+        #os.remove("/tmp/sess-" + self.id + ".ckpt.index")
+        #os.remove("/tmp/sess-" + self.id + ".ckpt.data-00000-of-00001")
         if logEpochs:
             return fns
 
