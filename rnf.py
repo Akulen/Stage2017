@@ -4,56 +4,58 @@ from joblib           import Parallel, delayed
 from math             import sqrt
 from nn               import NN
 from sklearn.ensemble import ExtraTreesRegressor
-from solver           import Solver
 import numpy      as np
 import random
 import tensorflow as tf
 import utils
 
 class RNF1(ParallelForest):
-    def __init__(self, nbInputs, maxProf, layerSize, useRelu=False,
-            fixMiddle=False, sess=None, debug=False, sparse=True, useEt=False,
-            nbJobs=8, nbIter=-1, pref=""):
+    def __init__(self, nbInputs, maxProf, layerSize, activation=None,
+            fix=False, positiveWeight=False, sess=None, debug=False,
+            sparse=True, useEt=False, nbJobs=8, nbIter=-1, pref=""):
         super().__init__(nbIter=nbIter, nbJobs=nbJobs, pref=pref)
         self.pref = ("sparse-" if sparse else "") + "random-neural-" + self.pref 
 
-        self.nbInputs  = nbInputs
-        self.maxProf   = maxProf
-        self.layerSize = layerSize
-        self.useRelu   = useRelu
-        self.fixMiddle = fixMiddle
-        self.sess      = sess
-        self.debug     = debug
-        self.sparse    = sparse
-        self.useEt     = useEt
+        self.nbInputs       = nbInputs
+        self.maxProf        = maxProf
+        self.layerSize      = layerSize
+        self.activation     = activation
+        self.fix            = fix
+        self.positiveWeight = positiveWeight
+        self.sess           = sess
+        self.debug          = debug
+        self.sparse         = sparse
+        self.useEt          = useEt
 
         self.initSolvers()
 
     def createSolver(self, id):
         return RNF2(self.nbInputs, self.maxProf, self.layerSize,
-                useRelu=self.useRelu, fixMiddle=self.fixMiddle, sess=self.sess,
+                activation=self.activation, fix=self.fix,
+                positiveWeight=self.positiveWeight, sess=self.sess,
                 debug=self.debug, sparse=self.sparse, useEt=self.useEt,
                 nbIter=1, pref=id)
 
 
 
 class RNF2(Forest):
-    def __init__(self, nbInputs, maxProf, layerSize, useRelu=False,
-            fixMiddle=False, sess=None, debug=False, sparse=True, useEt=False,
-            nbIter=-1, pref=""):
-        self.nbInputs    = nbInputs
-        self.maxProf     = maxProf
-        self.layers      = [
+    def __init__(self, nbInputs, maxProf, layerSize, activation=None,
+            fix=False, positiveWeight=False, sess=None, debug=False,
+            sparse=True, useEt=False, nbIter=-1, pref=""):
+        self.nbInputs       = nbInputs
+        self.maxProf        = maxProf
+        self.layers         = [
             (layerSize-1, 100),
             (layerSize,     1)
         ]
-        self.useRelu     = useRelu
-        self.fixMiddle   = fixMiddle
-        self.sess        = sess
-        self.debug       = debug
-        self.sparse      = sparse
-        self.useEt       = useEt
-        self.maxFeatures = (self.nbInputs+2) // 3
+        self.activation     = activation
+        self.fix            = fix
+        self.positiveWeight = positiveWeight
+        self.sess           = sess
+        self.debug          = debug
+        self.sparse         = sparse
+        self.useEt          = useEt
+        self.maxFeatures    = (self.nbInputs+2) // 3
 
         super().__init__(nbIter=nbIter, pref=pref)
         self.pref = ("sparse-" if sparse else "") + "random-neural-" + self.pref 
@@ -72,13 +74,13 @@ class RNF2(Forest):
 
     def train(self, data, validation, nbEpochs=100, batchSize=32,
             logEpochs=False):
-        if not self.useEt:
+        if self.useEt:
+            self.et.train(data, validation, nbEpochs=nbEpochs)
+        else:
             for i in range(self.nbIter):
                 batch = utils.selectBatch(data, len(data)//3, replace=False,
                         unzip=False)
                 self.rf[i].train(batch, validation, nbEpochs)
-        else:
-            self.et.train(data, validation, nbEpochs=nbEpochs)
 
         connectivity = [[] for _ in range(2)]
         weight       = [[] for _ in range(3)]
@@ -105,7 +107,8 @@ class RNF2(Forest):
 
         self.iters[0] = NN(self.pref, self.run, self.nbInputs, self.layers,
                 connectivity=connectivity, weight=weight, bias=bias,
-                useRelu=self.useRelu, fixMiddle=self.fixMiddle, sess=self.sess,
+                activation=self.activation, fix=self.fix,
+                positiveWeight=self.positiveWeight, sess=self.sess,
                 debug=self.debug)
 
         return self.iters[0].train(data, validation, nbEpochs=nbEpochs,
