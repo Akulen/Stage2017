@@ -53,7 +53,16 @@ class Forest(object):
 
     def close(self):
         for it in self.iters:
-            it.close()
+            if it is not None:
+                it.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.close()
+
+
 
 class ParallelForest(Forest):
     __metaclass__ = ABCMeta
