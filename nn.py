@@ -14,20 +14,23 @@ def randomRange(fan_in, fan_out):
 
 class NN(Solver):
     def __init__(self, id, run, nbInputs, layers, connectivity=None,
-            weight=None, bias=None, useRelu=False, fixMiddle=False, sess=None,
-            debug=False):
+            weight=None, bias=None, activation=None, fix=False,
+            positiveWeight=False, sess=None, debug=False):
         super().__init__(id, run, nbInputs)
-        self.layers    = layers
         self.summaries = []
         self.layers    = []
         self.debug     = debug
 
-        gamma           = [y for _, y in layers]
-        self.dimensions = [nbInputs] + [x for x, _ in layers] + [1]
+        layers          = self.initLayers(layers, bias)
 
-        connectivity = self.initConnectivity(layers, connectivity)
-        weight       = self.initWeight(layers, weight)
-        bias         = self.initBias(layers, bias)
+        gamma           = [[y for _, y in l] for l in layers]
+        self.dimensions = [[nbInputs]] + [[x for x, _ in l] for l in layers] + [[1]]
+
+        fix             = self.initFix(len(layers), fix)
+        self.activation = self.initActivation(len(layers), activation)
+        connectivity    = self.initConnectivity(len(layers), connectivity)
+        weight          = self.initWeight(len(layers), weight)
+        bias            = self.initBias(len(layers), bias)
 
         self.sess = tf.Session() if sess is None else sess
 
@@ -45,13 +48,18 @@ class NN(Solver):
                 layer = []
                 ny = [None] * len(bias[i])
                 for j in range(len(bias[i])):
-                    b = tf.Variable(initial_value=bias[i][j])
-                    if j == 1 and fixMiddle:
+                    if fix[i][1]:
+                        b = bias[i][j]
+                    else:
+                        b = tf.Variable(initial_value=bias[i][j])
+                    if fix[i][0]:
                         W = weight[i][j]
                     else:
                         W = tf.Variable(initial_value=weight[i][j])
+                    if i == 2 and positiveWeight:
+                        W = tf.nn.relu(W)
 
-                    if i < len(layers) - 1:
+                    if i < len(layers):
                         C = tf.constant(connectivity[i][j], dtype=tf.float32)
                         W = W * C
 
@@ -61,11 +69,10 @@ class NN(Solver):
                     ny[j] = tf.sparse_matmul(y[y_id], W, b_is_sparse=True) + b
 
                     if i < len(layers):
-                        fAct = tf.nn.relu if useRelu else tf.tanh
-                        ny[j] = fAct(gamma[i] * ny[j])
+                        ny[j] = self.activation[i](gamma[i][j] * ny[j])
 
                     layer.append((W, b, ny[j]))
-
+                
                 if i == len(layers):
                     ny = [tf.add_n(ny)]
 
@@ -89,21 +96,38 @@ class NN(Solver):
 
         self.sess.run(tf.variables_initializer(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=id)))
 
-    def initConnectivity(self, layers, connectivity):
+    def initFix(self, nLayer, fix):
+        if fix == True or fix == False:
+            fix = [fix] * (nLayer + 1)
+        for i in range(len(fix)):
+            if fix[i] == True or fix[i] == False:
+                fix[i] = [fix[i], fix[i]]
+        return fix
+
+    def initActivation(self, nLayer, activation):
+        if activation is None:
+            activation = [None] * nLayer
+        for i in range(len(activation)):
+            if activation[i] is None:
+                activation[i] = tf.tanh
+        return activation
+
+    def initConnectivity(self, nLayer, connectivity):
         if connectivity is None:
-            connectivity = [None] * len(layers)
+            connectivity = [None] * nLayer
         for i in range(len(connectivity)):
             if connectivity[i] is None:
                 connectivity[i] = [None]
             for j in range(len(connectivity[i])):
                 if connectivity[i][j] is None:
-                    connectivity[i][j] = np.ones((self.dimensions[i],
-                        self.dimensions[i+1]))
+                    a = 0 if len(self.dimensions[i]) == 1 else j
+                    connectivity[i][j] = np.ones((self.dimensions[i][a],
+                        self.dimensions[i+1][j]))
         return connectivity
 
-    def initWeight(self, layers, weight):
+    def initWeight(self, nLayer, weight):
         if weight is None:
-            weight = [None] * (len(layers) + 1)
+            weight = [None] * (nLayer + 1)
         for i in range(len(weight)):
             if weight[i] is None:
                 weight[i] = [None]
@@ -111,15 +135,18 @@ class NN(Solver):
                 #        seed=random.randint(0, 10**9))
             for j in range(len(weight[i])):
                 if weight[i][j] is None:
-                    weight[i][j] = tf.truncated_normal(self.dimensions[i:i+2],
-                            dtype=tf.float32, seed=random.randint(-10**5, 10**5))
+                    a = 0 if len(self.dimensions[i]) == 1 else j
+                    b = 0 if len(self.dimensions[i+1]) == 1 else j
+                    weight[i][j] = tf.truncated_normal((self.dimensions[i][a],
+                        self.dimensions[i+1][b]), dtype=tf.float32,
+                        seed=random.randint(-10**5, 10**5))
                 else:
                     weight[i][j] = tf.constant(weight[i][j], dtype=tf.float32)
         return weight
 
-    def initBias(self, layers, bias):
+    def initBias(self, nLayer, bias):
         if bias is None:
-            bias = [None] * (len(layers) + 1)
+            bias = [None] * (nLayer + 1)
         for i in range(len(bias)):
             if bias[i] is None:
                 bias[i] = [None]
@@ -127,11 +154,18 @@ class NN(Solver):
                 #        seed=random.randint(0, 10**9))
             for j in range(len(bias[i])):
                 if bias[i][j] is None:
-                    bias[i][j] = tf.truncated_normal([self.dimensions[i+1]],
+                    b = 0 if len(self.dimensions[i+1]) == 1 else j
+                    bias[i][j] = tf.truncated_normal([self.dimensions[i+1][b]],
                             dtype=tf.float32, seed=random.randint(-10**5, 10**5))
                 else:
                     bias[i][j] = tf.constant(bias[i][j], dtype=tf.float32)
         return bias
+
+    def initLayers(self, layers, bias):
+        for i in range(len(layers)):
+            if not isinstance(layers[i], list):
+                layers[i] = [layers[i] for _ in range(len(bias[i]))]
+        return layers
 
     def train(self, data, validation, nbEpochs=100, batchSize=32, logEpochs=False):
         loss = float("inf")
@@ -148,7 +182,7 @@ class NN(Solver):
                 self.sess.run([self.train_step],
                         feed_dict={self.x: batch_xs, self.y: batch_ys})
             if self.debug:
-                summary, closs = self.evaluate(validation)
+                summary, closs = self.evaluate(validation, debug=True)
                 self.train_writer.add_summary(summary, i)
                 if i % 10 == 9:
                     print("%s: Epoch #%02d -> %9.4f" % (self.id, i, closs))
@@ -169,56 +203,79 @@ class NN(Solver):
         if logEpochs:
             return fns
 
-    def evaluate(self, data):
+    def evaluate(self, data, debug=False):
         xs, ys = map(list, zip(* data))
-        values = self.vloss if not self.debug else [self.summaries[0], self.vloss]
-
+        values = self.vloss if not debug else [self.summaries[0], self.vloss]
+        
         results = self.sess.run(values, feed_dict={self.x: xs, self.y: ys})
         return results
+
+    def getWeights(self, layer, iter):
+        return self.sess.run(self.layers[layer][iter][0])
+
+    def getBias(self, layer, iter):
+        return self.sess.run(self.layers[layer][iter][1])
 
     def solve(self, x):
         return self.sess.run(self.output, feed_dict={self.x: x})
 
     def close(self):
         self.sess.close()
+        del self.sess
+        del self.loss
+        del self.output
+        del self.summaries
+        del self.summary
+        del self.train_step
+        if self.debug:
+            del self.train_writer
+        del self.vloss
+        del self.x
+        del self.y
+        del self.layers
         super().close()
 
 
 
 class NNF1(ParallelForest):
-    def __init__(self, nbInputs, layerSize, useRelu=False, fixMiddle=False,
-            sess=None, debug=False, nbJobs=8, nbIter=-1, pref=""):
+    def __init__(self, nbInputs, layerSize, activation=None, fix=False,
+            positiveWeight=False, sess=None, debug=False, nbJobs=8, nbIter=-1,
+            pref=""):
         super().__init__(nbIter=nbIter, nbJobs=nbJobs, pref=pref)
         self.pref = "neural-net-" + self.pref
 
-        self.nbInputs  = nbInputs
-        self.layers    = [(layerSize-1, 100), (layerSize, 1)]
-        self.useRelu   = useRelu
-        self.fixMiddle = fixMiddle
-        self.sess      = sess
-        self.debug     = debug
+        self.nbInputs       = nbInputs
+        self.layers         = [(layerSize-1, 100), (layerSize, 1)]
+        self.activation     = activation
+        self.fix            = fix
+        self.positiveWeight = positiveWeight
+        self.sess           = sess
+        self.debug          = debug
 
         self.initSolvers()
 
     def createSolver(self, id):
         return NN(self.pref + "-" + str(id), self.run, self.nbInputs,
-                self.layers, useRelu=self.useRelu, fixMiddle=self.fixMiddle,
+                self.layers, activation=self.activation,
+                fix=self.fix, positiveWeight=self.positiveWeight,
                 sess=self.sess, debug=self.debug)
 
 
 
 class NNF2(Forest):
-    def __init__(self, nbInputs, layerSize, useRelu=False, fixMiddle=False,
-            sess=None, debug=False, nbIter=-1, pref=""):
+    def __init__(self, nbInputs, layerSize, activation=None, fix=False,
+            positiveWeight=False, sess=None, debug=False, nbIter=-1, pref=""):
         super().__init__(nbIter=1, pref=pref)
         self.pref = "neural-net-" + self.pref
 
-        self.nbInputs  = nbInputs
-        self.layers    = [(layerSize-1, 100), (layerSize, 1)]
-        self.useRelu   = useRelu
-        self.fixMiddle = fixMiddle
-        self.sess      = sess
-        self.debug     = debug
+        self.nbInputs       = nbInputs
+        self.layers         = [[(layerSize-1, 100)] * nbIter,
+                [(layerSize, 1)] * nbIter]
+        self.activation     = activation
+        self.fix            = fix
+        self.positiveWeight = positiveWeight
+        self.sess           = sess
+        self.debug          = debug
 
         self.connectivity = [[None] * nbIter for _ in range(2)]
         self.weight       = [[None] * nbIter for _ in range(3)]
@@ -227,9 +284,10 @@ class NNF2(Forest):
         self.initSolvers()
 
     def createSolver(self, id):
-        return NN(self.pref + "-" + str(id), self.run, self.nbInputs,
+        return NN(id, self.run, self.nbInputs,
                 self.layers, connectivity=self.connectivity, weight=self.weight,
-                bias=self.bias, useRelu=self.useRelu, fixMiddle=self.fixMiddle,
+                bias=self.bias, activation=self.activation,
+                fix=self.fix, positiveWeight=self.positiveWeight,
                 sess=self.sess, debug=self.debug)
 
     def evaluate(self, data):
