@@ -3,9 +3,107 @@ import datetime
 import numpy as np
 import random
 import re
+import resource
+
+def buildTree(p, iN, iL):
+    if len(iN) == 1:
+        assert len(iL) == 2
+        left = 0 if p[0][0] + p[1][1] > p[0][1] + p[1][0] else 1
+        return [iN[0], [iL[left]], [iL[1-left]]]
+
+    r = getRoot(p)
+
+    LV = []
+    for i in range(len(iL)):
+        LV.append((p[r][i] - p[r+len(p)//2][i], i))
+    LV.sort()
+    leftL = [LV[-1][1]]; rightL = [LV[0][1]]
+    for i in range(1, len(iL)-1):
+        if LV[i][0] < 0:
+            rightL.append(LV[i][1])
+        else:
+            leftL.append(LV[i][1])
+    assert len(leftL) > 0
+    assert len(rightL) > 0
+    ilL = [iL[i] for i in leftL]
+    irL = [iL[i] for i in rightL]
+
+    NV = []
+    for i in range(len(iN)):
+        if i != r:
+            NV.append((max([max(p[i][j], p[i+len(p)//2][j]) for j in rightL])
+                -max([max(p[i][j], p[i+len(p)//2][j]) for j in leftL]),
+                i))
+    NV.sort()
+    leftN = NV[:len(leftL)-1]; rightN = NV[len(leftL)-1:]
+    ilN = [iN[i] for _, i in leftN]
+    irN = [iN[i] for _, i in rightN]
+    pl  = [[p[i][j] for j in leftL] for _, i in leftN]
+    pl += [[p[i+len(p)//2][j] for j in leftL] for _, i in leftN]
+    pr  = [[p[i][j] for j in rightL] for _, i in rightN]
+    pr += [[p[i+len(p)//2][j] for j in rightL] for _, i in rightN]
+    
+    leftT  = buildTree(pl, ilN, ilL) if len(ilN) > 0 else ilL
+    rightT = buildTree(pr, irN, irL) if len(irN) > 0 else irL
+    return [iN[r], leftT, rightT]
 
 def custom_iso(clean=''):
     return re.sub('[\.].*', clean, datetime.datetime.now().isoformat())
+
+def dt2dn(dt, tree, a, b, c, d, n):
+    connectivity = [
+        np.zeros((a, b)),
+        np.zeros((b, c)),
+        np.zeros((c, d))
+    ]
+    weight = [
+        np.zeros((a, b)),
+        np.zeros((b, c)),
+        np.zeros((c, d)),
+        np.zeros((d, 1))
+    ]
+    bias = [
+        np.zeros(b),
+        np.zeros(c),
+        np.zeros(d),
+        np.zeros(1)
+    ]
+
+    nbNodes      = tree.node_count
+    father, side = makeTree(tree)
+    nodes, leafs = indexNodes(tree), indexLeafs(tree)
+    nodeMap      = revIndex(nodes)
+
+    for j, node in enumerate(nodes):
+        connectivity[0][tree.feature[node]][j] = 1.
+        weight[0][tree.feature[node]][j]       = 1.
+        bias[0][j]                             = - tree.threshold[node]
+
+    for j in range(b):
+        connectivity[1][j][j] = 1
+        weight[1][j][j]       = 1
+        bias[1][j]            = 0
+
+        connectivity[1][j][j+b] = 1
+        weight[1][j][j+b]       = -1
+        bias[1][j+b]            = 1
+    
+    for j, leaf in enumerate(leafs):
+        v   = side[leaf]
+        cur = father[leaf]
+        while cur != -1:
+            curI = nodeMap[cur]
+            if v != 1.:
+                curI += b
+            connectivity[2][curI][j] = 1.
+            weight[2][curI][j]       = 1
+
+            v    = side[cur]
+            cur  = father[cur]
+
+        weight[3][j][0]  = tree.value[leaf] / n
+
+    return connectivity, weight, bias
 
 def dt2nn(dt, tree, a, b, c, n):
     connectivity = [
@@ -64,6 +162,16 @@ def getData(filename, nbX, nbY):
         data.append((raw[nbY:nbY+nbX], raw[0:nbY]))
     return data
 
+def getRoot(p):
+    best = 0
+    bestV = sum(p[0])
+    for i in range(1, len(p)//2):
+        curV = sum([max(p[i][j], p[i+len(p)//2][j]) for j in range(len(p[i]))])
+        if curV > bestV:
+            bestV = curV
+            best  = i
+    return best
+
 def indexNodes(tree):
     nodes = []
     for i in range(tree.node_count):
@@ -88,6 +196,11 @@ def makeTree(tree):
             side[tree.children_left[i]]    = -1.
             side[tree.children_right[i]]   = 1.
     return father, side
+
+def mem():
+    print('Memory usage         : % 2.2f MB' % round(
+        resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024.0,1)
+    )
 
 def revIndex(index):
     mp = {}
