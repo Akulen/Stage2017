@@ -34,13 +34,14 @@ class DT(Solver):
         return self.tree.predict(x)
 
 class RF(Forest):
-    def __init__(self, nbInputs, maxProf, nbIter=-1, pref=""):
+    def __init__(self, nbInputs, maxProf, complete=False, nbIter=-1, pref=""):
         super().__init__(nbIter, pref)
         self.pref = "random-" + self.pref
 
         self.nbInputs    = nbInputs
         self.maxProf     = maxProf
-        self.maxFeatures = (nbInputs + 2) // 3
+        self.maxFeatures = nbInputs if complete else (nbInputs + 2) // 3
+        self.complete    = complete
 
         self.initSolvers()
 
@@ -49,8 +50,12 @@ class RF(Forest):
 
     def train(self, data, validation, nbEpochs=100, logEpochs=False):
         for it in self.iters:
-            batch = utils.selectBatch(data, len(data)//3, replace=False,
-                    unzip=False)
+            if self.complete:
+                batch = utils.selectBatch(data, len(data), replace=True,
+                        unzip=False)
+            else:
+                batch = utils.selectBatch(data, len(data)//3, replace=False,
+                        unzip=False)
             it.train(batch, validation, nbEpochs=nbEpochs)
 
         if logEpochs:
