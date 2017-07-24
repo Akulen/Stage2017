@@ -90,7 +90,7 @@ class NN(Solver):
             self.loss  = tf.losses.mean_squared_error(self.output, self.y)
             self.vloss = tf.sqrt(tf.losses.mean_squared_error(self.output, self.y))
 
-            self.train_step = tf.train.AdamOptimizer().minimize(self.loss)
+            self.train_step = tf.train.AdamOptimizer(0.01).minimize(self.loss)
 
             if self.debug:
                 self.summaries.append(tf.summary.scalar("vloss/" + self.id, self.vloss))
@@ -194,8 +194,8 @@ class NN(Solver):
                 closs = self.evaluate(validation)
             if closs < loss:
                 loss = closs
-                for i in range(len(self.vars)):
-                    self.vars[i][1] = self.sess.run(self.vars[i][0])
+                for j in range(len(self.vars)):
+                    self.vars[j][1] = self.sess.run(self.vars[j][0])
                 #saver.save(self.sess, "/tmp/sess-" + self.id + ".ckpt")
                 if logEpochs:
                     y = self.solve(testData)
@@ -208,6 +208,8 @@ class NN(Solver):
         #os.remove("/tmp/sess-" + self.id + ".ckpt.meta")
         #os.remove("/tmp/sess-" + self.id + ".ckpt.index")
         #os.remove("/tmp/sess-" + self.id + ".ckpt.data-00000-of-00001")
+        #print(self.sess.run(self.vars[2][0]))
+        #print(self.sess.run(self.layers[0][0][0]))
         if logEpochs:
             return fns
 
