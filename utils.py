@@ -50,7 +50,7 @@ def buildTree(p, iN, iL):
 def custom_iso(clean=''):
     return re.sub('[\.].*', clean, datetime.datetime.now().isoformat())
 
-def dt2dn(dt, tree, a, b, c, d, n):
+def dt2dn(dt, tree, a, b, c, d, n, gamma):
     connectivity = [
         np.zeros((a, b)),
         np.zeros((b, c)),
@@ -76,8 +76,8 @@ def dt2dn(dt, tree, a, b, c, d, n):
 
     for j, node in enumerate(nodes):
         connectivity[0][tree.feature[node]][j] = 1.
-        weight[0][tree.feature[node]][j]       = 1.
-        bias[0][j]                             = - tree.threshold[node]
+        weight[0][tree.feature[node]][j]       = gamma*1.
+        bias[0][j]                             = - gamma * tree.threshold[node]
 
     for j in range(b):
         connectivity[1][j][j] = 1

@@ -56,7 +56,7 @@ class DN2(Forest):
 
     def train(self, data, validation, nbEpochs=100, batchSize=32,
             logEpochs=False):
-        nbEpochs //= 2
+        #nbEpochs //= 2
         if self.useEt:
             self.et.train(data, validation, nbEpochs=nbEpochs)
         else:
@@ -69,18 +69,21 @@ class DN2(Forest):
         weight       = [[] for _ in range(4)]
         bias         = [[] for _ in range(4)]
 
+        gamma = 100
+
         for i in range(self.nbIter):
             if self.useEt:
                 tree = self.et.tree.estimators_[i]
             else:
                 tree = self.rf[i].tree.estimators_[0]
             nbNodes = tree.tree_.node_count // 2
-            self.layers[0][i] = (nbNodes, 100)
+            self.layers[0][i] = (nbNodes,   1)
             self.layers[1][i] = (2*nbNodes, 1)
             self.layers[2][i] = (nbNodes+1, 1)
+            
             c, w, b = utils.dt2dn(self.rf[i], tree.tree_, self.nbInputs,
                     self.layers[0][i][0], self.layers[1][i][0],
-                    self.layers[2][i][0], self.nbIter)
+                    self.layers[2][i][0], self.nbIter, gamma)
 
             for j in range(4):
                 if j < 3:
@@ -105,6 +108,7 @@ class DN2(Forest):
             tf.nn.softmax
         ]
 
+        #self.debug=True
         self.iters[0] = NN(self.pref, self.run, self.nbInputs, self.layers,
                 connectivity=connectivity, weight=weight, bias=bias,
                 activation=activation, fix=[False, True, [False,True], False],
@@ -121,7 +125,8 @@ class DN2(Forest):
                 weight[j][i] = self.iters[0].getWeights(j, i)
                 bias[j][i]   = self.iters[0].getBias(j, i)
         for i in range(self.nbIter):
-            p = (np.tanh(2 * np.array(weight[2][i]) - 1) + 1) / 2
+            p = (np.tanh(gamma * (2 * np.array(weight[2][i]) - 1)) + 1) / 2
+            #p = np.array(weight[2][i])
             #p = [[max(q[j][k], q[j+self.layerSize-1][k]) for k in range(self.layerSize)]
             #    for j in range(self.layerSize-1)]
             weight[2][i] = np.zeros(weight[2][i].shape)
@@ -131,7 +136,7 @@ class DN2(Forest):
             def fill(t, path=[]):
                 if len(t) == 1:
                     for n in path:
-                        weight[2][i][n][t[0]] = 1
+                        weight[2][i][n][t[0]] = 1.
                     return
                 fill(t[1], path+[t[0]])
                 fill(t[2], path+[t[0]+self.layers[0][i][0]])
@@ -146,15 +151,19 @@ class DN2(Forest):
         fns2 = self.iters[1].train(data, validation, nbEpochs=nbEpochs,
                 batchSize=batchSize, logEpochs=logEpochs)
 
+        self.best = 1
+        if self.iters[0].evaluate(validation) < self.iters[1].evaluate(validation):
+            self.best = 0
+
         if logEpochs:
             fns += fns2
-        return fns
+        return fns[::2]
 
     def evaluate(self, data):
-        return self.iters[1].evaluate(data)
+        return self.iters[self.best].evaluate(data)
 
     def solve(self, x):
-        return self.iters[1].solve(x)
+        return self.iters[self.best].solve(x)
 
 
 
