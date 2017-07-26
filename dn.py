@@ -157,7 +157,8 @@ class DN2(Forest):
 
         if logEpochs:
             fns += fns2
-        return fns[::2]
+            fns = fns[::2]
+        return fns
 
     def evaluate(self, data):
         return self.iters[self.best].evaluate(data)
