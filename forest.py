@@ -1,13 +1,14 @@
-from abc    import ABCMeta, abstractmethod
-from joblib import Parallel, delayed
-from math   import sqrt
-from solver import Solver
+from abc          import ABCMeta,  abstractmethod
+from joblib       import Parallel, delayed
+from math         import sqrt
+from numpy.random import RandomState
+from solver       import Solver
 import utils
 
 class Forest(object):
     __metaclass__ = ABCMeta
 
-    def __init__(self, nbIter=-1, pref=""):
+    def __init__(self, nbIter=-1, pref="", rs=None):
         if nbIter == -1:
             nbIter = 30
         if pref != "":
@@ -15,6 +16,7 @@ class Forest(object):
         self.nbIter = nbIter
         self.pref   = "forest" + pref
         self.run    = utils.custom_iso()
+        self.rs     = rs if rs else RandomState(None)
 
     def initSolvers(self):
         self.iters  = [self.createSolver(self.pref + "-" + str(i))
@@ -24,9 +26,10 @@ class Forest(object):
     def createSolver(self, id):
         pass
 
-    def train(self, data, validation, nbEpochs=100, logEpochs=False):
-        r = [it.train(data, validation, nbEpochs=nbEpochs, logEpochs=logEpochs)
-                for it in self.iters]
+    def train(self, data, validation, nbEpochs=100, logEpochs=False,
+            sampler=None):
+        r = [it.train(data, validation, nbEpochs=nbEpochs, logEpochs=logEpochs,
+                sampler=RandomState(sampler.randint(1E9))) for it in self.iters]
 
         if logEpochs:
             fns = [[0 for _ in range(len(r[0][0]))] for _ in range(len(r[0]))]
@@ -67,8 +70,8 @@ class Forest(object):
 class ParallelForest(Forest):
     __metaclass__ = ABCMeta
 
-    def __init__(self, nbIter=-1, nbJobs=8, pref=""):
-        super().__init__(nbIter, pref)
+    def __init__(self, nbIter=-1, nbJobs=8, pref="", rs=None):
+        super().__init__(nbIter, pref, rs=rs)
         self.pref = "parallel-" + self.pref
 
         self.nbJobs = nbJobs

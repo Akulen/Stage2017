@@ -3,6 +3,7 @@ from forest           import Forest, ParallelForest
 from joblib           import Parallel, delayed
 from math             import sqrt
 from nn               import NN
+from numpy.random     import RandomState
 from sklearn.ensemble import ExtraTreesRegressor
 import numpy      as np
 import random
@@ -12,8 +13,8 @@ import utils
 class RNF1(ParallelForest):
     def __init__(self, nbInputs, maxProf, layerSize, activation=None,
             fix=False, positiveWeight=False, sess=None, debug=False,
-            sparse=True, useEt=False, nbJobs=8, nbIter=-1, pref=""):
-        super().__init__(nbIter=nbIter, nbJobs=nbJobs, pref=pref)
+            sparse=True, useEt=False, nbJobs=8, nbIter=-1, pref="", rs=None):
+        super().__init__(nbIter=nbIter, nbJobs=nbJobs, pref=pref, rs=rs)
         self.pref = ("sparse-" if sparse else "") + "random-neural-" + self.pref 
 
         self.nbInputs       = nbInputs
@@ -34,18 +35,18 @@ class RNF1(ParallelForest):
                 activation=self.activation, fix=self.fix,
                 positiveWeight=self.positiveWeight, sess=self.sess,
                 debug=self.debug, sparse=self.sparse, useEt=self.useEt,
-                nbIter=1, pref=id)
+                nbIter=1, pref=id, rs=RandomState(self.rs.randint(1E9)))
 
 
 
 class RNF2(Forest):
     def __init__(self, nbInputs, maxProf, layerSize, activation=None,
             fix=False, positiveWeight=False, sess=None, debug=False,
-            sparse=True, useEt=False, nbIter=-1, pref=""):
+            sparse=True, useEt=False, nbIter=-1, pref="", rs=None):
         self.nbInputs       = nbInputs
         self.maxProf        = maxProf
         self.layers         = [
-            (layerSize-1, 100),
+            (layerSize-1, 10000),
             (layerSize,     1)
         ]
         self.activation     = activation
@@ -57,30 +58,33 @@ class RNF2(Forest):
         self.useEt          = useEt
         self.maxFeatures    = (self.nbInputs+2) // 3
 
-        super().__init__(nbIter=nbIter, pref=pref)
+        super().__init__(nbIter=nbIter, pref=pref, rs=rs)
         self.pref = ("sparse-" if sparse else "") + "random-neural-" + self.pref 
 
         if useEt:
             self.et = DT(self.sess, self.run, self.nbInputs, self.maxProf,
                     self.maxFeatures, nbIter=self.nbIter,
-                    treeType=ExtraTreesRegressor)
+                    treeType=ExtraTreesRegressor, rs=RandomState(self.rs.randint(1E9)))
 
         self.initSolvers()
         self.rf = self.iters[:]
         self.iters = [None]
 
     def createSolver(self, id):
-        return DT(id, self.run, self.nbInputs, self.maxProf, self.maxFeatures)
+        return DT(id, self.run, self.nbInputs, self.maxProf, self.maxFeatures,
+                rs=self.rs)
 
     def train(self, data, validation, nbEpochs=100, batchSize=32,
-            logEpochs=False):
+            logEpochs=None, sampler=None):
         if self.useEt:
-            self.et.train(data, validation, nbEpochs=nbEpochs)
+            fff = self.et.train(data, validation, nbEpochs=nbEpochs,
+                    logEpochs=logEpochs, sampler=sampler)
         else:
             for i in range(self.nbIter):
                 batch = utils.selectBatch(data, len(data)//3, replace=False,
-                        unzip=False)
-                self.rf[i].train(batch, validation, nbEpochs)
+                        unzip=False, rs=sampler)
+                fff = self.rf[i].train(batch, validation, nbEpochs,
+                        logEpochs=logEpochs)
 
         connectivity = [[] for _ in range(2)]
         weight       = [[] for _ in range(3)]
@@ -109,10 +113,19 @@ class RNF2(Forest):
                 connectivity=connectivity, weight=weight, bias=bias,
                 activation=self.activation, fix=self.fix,
                 positiveWeight=self.positiveWeight, sess=self.sess,
-                debug=self.debug)
+                debug=self.debug, rs=self.rs)
 
-        return self.iters[0].train(data, validation, nbEpochs=nbEpochs,
-                batchSize=batchSize, logEpochs=logEpochs)
+        fns = self.iters[0].train(data, validation, nbEpochs=nbEpochs,
+                batchSize=batchSize, logEpochs=logEpochs, sampler=sampler)
+        #if logEpochs:
+            #fns[3] = np.array(fns[0])
+            #fns[4] = np.array(fns[1])
+            #fns[5] = np.array(fns[2])
+            #treef  = [x[0] for x in fff[0]]
+            #fns[0] = np.array(treef)
+            #fns[1] = np.array(treef)
+            #fns[2] = np.array(treef)
+        return fns
 
     def evaluate(self, data):
         return self.iters[0].evaluate(data)

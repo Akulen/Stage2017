@@ -1,17 +1,17 @@
-from math import sqrt
+from math         import e, log, sqrt
+from numpy.random import RandomState
 import datetime
 import numpy as np
-import random
 import re
 import resource
 
-def buildTree(p, iN, iL):
+def buildTree(p, iN, iL, balance=False):
     if len(iN) == 1:
         assert len(iL) == 2
         left = 0 if p[0][0] + p[1][1] > p[0][1] + p[1][0] else 1
         return [iN[0], [iL[left]], [iL[1-left]]]
 
-    r = getRoot(p)
+    r = getRoot(p, balance)
 
     LV = []
     for i in range(len(iL)):
@@ -31,8 +31,8 @@ def buildTree(p, iN, iL):
     NV = []
     for i in range(len(iN)):
         if i != r:
-            NV.append((max([max(p[i][j], p[i+len(p)//2][j]) for j in rightL])
-                -max([max(p[i][j], p[i+len(p)//2][j]) for j in leftL]),
+            NV.append((max([p[i][j] + p[i+len(p)//2][j] for j in rightL])
+                - max([p[i][j] + p[i+len(p)//2][j] for j in leftL]),
                 i))
     NV.sort()
     leftN = NV[:len(leftL)-1]; rightN = NV[len(leftL)-1:]
@@ -56,10 +56,11 @@ def dt2dn(dt, tree, a, b, c, d, n, gamma):
         np.zeros((b, c)),
         np.zeros((c, d))
     ]
+    eps = 10**-3
     weight = [
         np.zeros((a, b)),
         np.zeros((b, c)),
-        np.zeros((c, d)),
+        np.zeros((c, d))+log(e**eps-1),
         np.zeros((d, 1))
     ]
     bias = [
@@ -96,7 +97,7 @@ def dt2dn(dt, tree, a, b, c, d, n, gamma):
             if v != 1.:
                 curI += b
             connectivity[2][curI][j] = 1.
-            weight[2][curI][j]       = 1
+            weight[2][curI][j]       = log(e-1)
 
             v    = side[cur]
             cur  = father[cur]
@@ -162,14 +163,33 @@ def getData(filename, nbX, nbY):
         data.append((raw[nbY:nbY+nbX], raw[0:nbY]))
     return data
 
-def getRoot(p):
+def getRoot(p, balance=False):
+    def getExp(x):
+        return sum([p[x][i] + p[x+len(p)//2][i] for i in range(len(p[x]))])
+    
     best = 0
-    bestV = sum(p[0])
-    for i in range(1, len(p)//2):
-        curV = sum([max(p[i][j], p[i+len(p)//2][j]) for j in range(len(p[i]))])
-        if curV > bestV:
-            bestV = curV
-            best  = i
+    bestV = getExp(0)
+    delta = len(p[0])+1
+    for x in range(len(p)//2):
+        if balance:
+            L, R = 0, 0
+            for i in range(len(p[0])):
+                if p[x][i] - p[x+len(p)//2][i] < 0:
+                    R += 1
+                else:
+                    L += 1
+            if delta > abs(R-L):
+                delta = abs(R-L)
+                best = x
+            elif delta == abs(R-L):
+                if getExp(x) > getExp(best):
+                    best = x
+        else:
+            curV = getExp(x)
+            if curV > bestV:
+                bestV = curV
+                best  = x
+
     return best
 
 def indexNodes(tree):
@@ -211,10 +231,12 @@ def revIndex(index):
 def rmse(a, b):
     return sqrt(np.mean(sq(a-b)))
 
-def selectBatch(data, batchSize, replace=True, unzip=True):
+def selectBatch(data, batchSize, replace=True, unzip=True, rs=None):
+    if rs is None:
+        rs = RandomState(rs)
     ret = []
     for i in range(batchSize):
-        j = random.randint(0 if replace else i, len(data)-1)
+        j = rs.randint(0 if replace else i, len(data)-1)
         ret.append(data[j])
         if not replace:
             data[i], data[j] = data[j], data[i]
